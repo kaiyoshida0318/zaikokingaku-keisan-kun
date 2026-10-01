@@ -28,17 +28,28 @@
 ## セットアップ
 
 1. Supabase SQL Editor で、入庫一括の `supabase/cost_lots.sql` → このリポジトリの `supabase/zaiko_kingaku.sql` の順に実行
-2. ne-sync-worker を更新してデプロイ（`/api/cost/reconcile` と毎日の Cron）
-3. GitHub に `zaikokingaku-keisan-kun` リポジトリを作り、Repository secrets に以下を登録（入庫一括と同じ値）
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `NEXT_PUBLIC_AUTH_API_BASE_URL`
-   - `NEXT_PUBLIC_NE_SYNC_WORKER_URL`
-4. Settings → Pages の Source を「GitHub Actions」にして push（`.github/workflows/deploy.yml` がビルド・公開します）
+2. **キー用のユーザーを作る**：Supabase の Authentication → Users → Add user → Create new user
+   - Email：専用のアドレス（例 `zaiko@kai-corp.jp`。実在しなくても可）
+   - Password：**これが画面で入力するキー**（長めのものを）
+   - 「Auto Confirm User」にチェック
+   - ne-sync-worker の `SUPABASE_AUTH_ALLOWED_EMAILS` を設定している場合は、このメールアドレスを追加（「NEと照合」ボタンで使います）
+3. ne-sync-worker を更新してデプロイ（`/api/cost/reconcile` と毎日の Cron）
+4. GitHub の Repository secrets に以下を登録
+   - `NEXT_PUBLIC_SUPABASE_URL`（入庫一括と同じ）
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`（入庫一括と同じ）
+   - `NEXT_PUBLIC_NE_SYNC_WORKER_URL`（入庫一括と同じ）
+   - `NEXT_PUBLIC_ZAIKO_LOGIN_EMAIL`（2で作ったメールアドレス）
+5. Settings → Pages の Source を「GitHub Actions」にして push（`.github/workflows/deploy.yml` がビルド・公開します）
 
 公開URLは `https://<ユーザー名>.github.io/zaikokingaku-keisan-kun/` です。ne-sync-worker の `ALLOWED_ORIGIN` は入庫一括と同じオリジン（`https://<ユーザー名>.github.io`）なので変更不要です。
 
-ログインは入庫一括と同じ秘密の質問ログインです。
+### ログイン（キー）について
+
+画面ではキーだけを入力します。中身は 2 で作ったユーザーのパスワード認証です。
+
+- キーは GitHub Secrets には入れません（`NEXT_PUBLIC_` の値は公開されるJSに埋め込まれるため）。Supabase だけが知っています
+- 一度入ればそのブラウザではログインが続きます。右上の「ログアウト」で抜けられます
+- キーを変えたいときは Supabase の Users でそのユーザーのパスワードを変更
 
 ## ローカル起動
 

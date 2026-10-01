@@ -1,6 +1,17 @@
 @echo off
 cd /d "%~dp0"
 
+if not exist "node_modules\" (
+  echo node_modules not found. Running npm install...
+  call npm install
+  if errorlevel 1 (
+    echo.
+    echo npm install failed. Commit and push were not executed.
+    pause
+    exit /b 1
+  )
+  echo.
+)
 echo Running npm run build...
 call npm run build
 if errorlevel 1 (

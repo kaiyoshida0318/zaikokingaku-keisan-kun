@@ -34,5 +34,6 @@ export function getSupabaseConfigError(): string | null {
   return "NEXT_PUBLIC_SUPABASE_URL と NEXT_PUBLIC_SUPABASE_ANON_KEY を設定してからビルドしてください。";
 }
 
-export const AUTH_API_BASE_URL = String(process.env.NEXT_PUBLIC_AUTH_API_BASE_URL ?? "").replace(/\/+$/, "");
+/** キー入力だけで入るための専用ユーザーのメールアドレス（秘密ではない）。パスワードがキー */
+export const LOGIN_EMAIL = String(process.env.NEXT_PUBLIC_ZAIKO_LOGIN_EMAIL ?? "").trim();
 export const NE_SYNC_WORKER_URL = String(process.env.NEXT_PUBLIC_NE_SYNC_WORKER_URL ?? "").trim().replace(/\/+$/, "");
