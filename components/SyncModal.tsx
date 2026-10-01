@@ -112,6 +112,11 @@ export default function SyncModal(props: {
               <td>配送依頼書ごとに、単価・オプション・中国内運賃・国際送料から計算した原価で登録されます。同時にNEの原価も最新の便の値に更新されます。</td>
             </tr>
             <tr>
+              <td>過去の便（原価だけ）</td>
+              <td><span className="tag tag-hand">入庫一括で「原価だけ登録」</span></td>
+              <td>届いている便を、登録日＝配送依頼書の日付で登録し、今のNE在庫と照合します。NEの在庫数は変わりません。</td>
+            </tr>
+            <tr>
               <td>入数・共有資材の割当</td>
               <td><span className="tag tag-hand">入庫一括で手入力</span></td>
               <td>1行に複数コードがある行や、商品コードのない紙などの分け方。一度入れれば次回から自動です。</td>
@@ -130,7 +135,7 @@ export default function SyncModal(props: {
             <tr>
               <td>期首在庫</td>
               <td><span className="tag tag-btn">初回の照合でチェック</span></td>
-              <td>便がまだない商品を、NEの在庫数・原価で登録します。NEの原価が0の商品は「要確認」になります。</td>
+              <td>便がまだない商品を、NEの在庫数・原価で仮に登録します。その商品で最初に原価計算された便が入ると、期首在庫の原価はその便の原価に置き換わります。</td>
             </tr>
             <tr className="group"><td colSpan={3}>この画面</td></tr>
             <tr>

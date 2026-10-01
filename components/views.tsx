@@ -597,7 +597,13 @@ export function LogsView({ logs, top }: { logs: LogRow[]; top: ReactNode }) {
               <tr key={row.id}>
                 <td className="muted">{dateTime(row.loggedAt)}</td>
                 <td className="code">{row.productCode}</td>
-                <td>{row.event === "receipt" ? <span className="status monitoring">入庫 {shipmentLabel(row.shipmentId)}</span> : <span className="status paused">照合</span>}</td>
+                <td>{row.event === "receipt" ? (
+                  <span className="status monitoring">入庫 {shipmentLabel(row.shipmentId)}</span>
+                ) : row.event === "backfill" ? (
+                  <span className="status warn">過去の便 {shipmentLabel(row.shipmentId)}</span>
+                ) : (
+                  <span className="status paused">照合</span>
+                )}</td>
                 <td className="num">{count(row.neStock)}</td>
                 <td className="num">{count(row.lotsQtyBefore)}</td>
                 <td className="num">{row.consumed ? count(row.consumed) : ""}</td>
