@@ -2,22 +2,17 @@
 
 import { FormEvent, useState } from "react";
 import { LOGIN_EMAIL, supabase, supabaseUrl } from "@/lib/supabaseClient";
+import Modal from "./Modal";
 
-type Theme = "light" | "dark";
-
-// 設定パネル：キーの入力（＝専用ユーザーのパスワード認証）と表示テーマ。
+// 設定：キーの入力（＝専用ユーザーのパスワード認証）。
 // キーはブラウザのコードに含まれず、Supabase だけが知っている。
 // 正しいキーを入れるとこのブラウザではログインが続き、データが表示される。
 export default function SettingsPanel({
   isUnlocked,
-  theme,
-  onChangeTheme,
   onLock,
   onClose,
 }: {
   isUnlocked: boolean;
-  theme: Theme | null;
-  onChangeTheme: (theme: Theme) => void;
   onLock: () => void;
   onClose: () => void;
 }) {
@@ -53,49 +48,43 @@ export default function SettingsPanel({
   }
 
   return (
-    <div className="settings" role="dialog" aria-label="設定">
-      <div className="settings-head">
-        <h2>設定</h2>
-        <button type="button" className="settings-close" onClick={onClose} aria-label="閉じる">×</button>
-      </div>
-
-      <section className="settings-section">
-        <h3>キー</h3>
-        {isUnlocked ? (
-          <div className="settings-unlocked">
-            <p><span className="dot dot--on" />キー入力済み。このブラウザではデータを表示できます。</p>
-            <button type="button" className="button" onClick={onLock}>キーを外す</button>
-          </div>
-        ) : (
-          <form className="settings-form" onSubmit={handleSubmit}>
-            <p className="settings-note">正しいキーを入れるとデータが表示されます。一度入れればこのブラウザでは保持されます。</p>
-            <div className="settings-row">
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={key}
-                onChange={(event) => setKey(event.target.value)}
-                placeholder="キーを入力"
-                autoFocus
-              />
-              <button className="button button--primary" type="submit" disabled={submitting}>
-                {submitting ? "確認中…" : "保存"}
-              </button>
-            </div>
-            {error && <p className="settings-error">{error}</p>}
-          </form>
-        )}
-      </section>
-
-      <section className="settings-section">
-        <h3>表示</h3>
-        <div className="segmented" role="group" aria-label="テーマ">
-          <button type="button" className={theme === "light" ? "is-active" : ""} onClick={() => onChangeTheme("light")}>ライト</button>
-          <button type="button" className={theme === "dark" ? "is-active" : ""} onClick={() => onChangeTheme("dark")}>ダーク</button>
+    <Modal title="⚙ 設定" onClose={onClose}>
+      <div className="settings-menu">
+        <div className="settings-item settings-item--static">
+          <b>🔑 キー</b>
+          {isUnlocked ? (
+            <>
+              <small>入力済みです。このブラウザではデータを表示できます。</small>
+              <div className="settings-actions">
+                <span className="status success">表示中</span>
+                <button type="button" className="btn-secondary" onClick={onLock}>キーを外す</button>
+              </div>
+            </>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <small>正しいキーを入れるとデータが表示されます。一度入れればこのブラウザでは保持されます。</small>
+              <div className="settings-key-row">
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={key}
+                  onChange={(event) => setKey(event.target.value)}
+                  placeholder="キーを入力"
+                  autoFocus
+                />
+                <button className="btn-primary" type="submit" disabled={submitting}>
+                  {submitting ? "確認中…" : "保存"}
+                </button>
+              </div>
+              {error && <p className="form-error">{error}</p>}
+            </form>
+          )}
         </div>
-      </section>
-
-      <p className="settings-meta">接続先 {supabaseUrl ? new URL(supabaseUrl).host : "未設定"}</p>
-    </div>
+        <div className="settings-item settings-item--static">
+          <b>🔌 接続先</b>
+          <small>Supabase：{supabaseUrl ? new URL(supabaseUrl).host : "未設定"}</small>
+        </div>
+      </div>
+    </Modal>
   );
 }

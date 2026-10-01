@@ -18,28 +18,15 @@ import { count, dateOnly, dateTime, yen } from "@/lib/format";
 import { getSupabaseConfigError, NE_SYNC_WORKER_URL, supabase, ZAIKO_AUTH_STORAGE_KEY } from "@/lib/supabaseClient";
 import BrandMark from "./BrandMark";
 import SettingsPanel from "./SettingsPanel";
+import SyncModal from "./SyncModal";
 import { LogsView, ProductsView, ShipmentsView, SnapshotsView, TrendChart } from "./views";
 
 type Tab = "products" | "shipments" | "snapshots" | "logs";
-type Theme = "light" | "dark";
-const THEME_KEY = "zaiko-kingaku-theme";
-
-function readTheme(): Theme {
-  try {
-    const saved = window.localStorage.getItem(THEME_KEY);
-    if (saved === "light" || saved === "dark") return saved;
-  } catch {
-    // 保存できない環境
-  }
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
 
 export default function ZaikoApp() {
   const [authLoading, setAuthLoading] = useState(true);
   const [accessToken, setAccessToken] = useState("");
   const [email, setEmail] = useState("");
-  // null = まだ読み込んでいない（読み込む前に保存して上書きしないため）
-  const [theme, setTheme] = useState<Theme | null>(null);
 
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [shipments, setShipments] = useState<ShipmentRow[]>([]);
@@ -56,19 +43,8 @@ export default function ZaikoApp() {
   const [reconcileError, setReconcileError] = useState<string | null>(null);
   const [reauthUrl, setReauthUrl] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
 
-  useEffect(() => {
-    setTheme(readTheme());
-  }, []);
-  useEffect(() => {
-    if (!theme) return;
-    document.documentElement.dataset.theme = theme;
-    try {
-      window.localStorage.setItem(THEME_KEY, theme);
-    } catch {
-      // 保存できなくても表示は切り替わる
-    }
-  }, [theme]);
 
   useEffect(() => {
     if (!supabase) {
@@ -180,181 +156,165 @@ export default function ZaikoApp() {
   const locked = !isLoggedIn;
   const monthDiff = previousMonthEnd ? totals.value - previousMonthEnd.totalValueJpy : null;
 
+  const metrics = locked ? null : (
+    <div className="metric-grid">
+      <div className="metric-card metric-card--main">
+        <div className="metric-icon">💴</div>
+        <div>
+          <div className="metric-value">{yen(totals.value)}</div>
+          <div className="metric-label">在庫金額（便ごとの原価・先入先出）</div>
+        </div>
+      </div>
+      <div className="metric-card">
+        <div className="metric-icon">📦</div>
+        <div>
+          <div className="metric-value">{count(totals.qty)}</div>
+          <div className="metric-label">在庫数</div>
+        </div>
+      </div>
+      <div className="metric-card">
+        <div className="metric-icon">🏷</div>
+        <div>
+          <div className="metric-value">{count(totals.products)}</div>
+          <div className="metric-label">在庫のある商品</div>
+        </div>
+      </div>
+      <div className="metric-card crown">
+        <div className="metric-icon">📅</div>
+        <div>
+          <div className="metric-value">
+            {monthDiff === null ? "—" : `${monthDiff >= 0 ? "+" : "−"}${yen(Math.abs(monthDiff))}`}
+          </div>
+          <div className="metric-label">
+            前月末比{previousMonthEnd ? `（${dateOnly(previousMonthEnd.snapshotDate)} ${yen(previousMonthEnd.totalValueJpy)}）` : ""}
+          </div>
+        </div>
+      </div>
+      <div className={`metric-card ${totals.review > 0 ? "alert" : ""}`}>
+        <div className="metric-icon">⚠️</div>
+        <div>
+          <div className="metric-value">{count(totals.review)}</div>
+          <div className="metric-label">要確認の商品</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const top = (
+    <>
+      {loadError && (
+        <div className="banner banner--error">
+          {loadError}
+          <button type="button" className="text-btn" onClick={() => void loadAll()}>再読み込み</button>
+        </div>
+      )}
+      {metrics}
+      {(tab === "products" || tab === "snapshots") && <TrendChart snapshots={snapshots} />}
+    </>
+  );
+
   return (
-    <main className="shell">
-      <header className="topbar">
-        <BrandMark compact />
-        <div className="topbar-actions">
-          <span className={`lock-state ${locked ? "is-locked" : "is-open"}`} title={email || undefined}>
-            <span className={`dot ${locked ? "" : "dot--on"}`} />
-            {authLoading ? "確認中" : locked ? "キー未入力" : "表示中"}
-          </span>
-          <button
-            type="button"
-            className={`icon-button ${settingsOpen ? "is-active" : ""}`}
-            onClick={() => setSettingsOpen((v) => !v)}
-            aria-label="設定"
-            aria-expanded={settingsOpen}
-            title="設定"
+    <>
+      <header className="app-header">
+        <div className="brand-group">
+          <BrandMark />
+          <span className="app-version">v0.1.0</span>
+        </div>
+        <div className="header-spacer" />
+        <div className="header-actions">
+          <span
+            className={`conn-pill ${locked ? "off" : "ok"}`}
+            title={lastCheck ? `最終照合 ${dateTime(lastCheck.takenAt)}` : undefined}
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
-            </svg>
+            {authLoading ? "確認中" : locked ? "キー未入力" : lastCheck ? `照合 ${dateTime(lastCheck.takenAt)}` : "表示中"}
+          </span>
+          <button type="button" className="btn-icon" onClick={() => setSettingsOpen(true)} title="キーと接続先">
+            ⚙ 設定
           </button>
-          {settingsOpen && (
-            <SettingsPanel
-              isUnlocked={!locked}
-              theme={theme}
-              onChangeTheme={setTheme}
-              onLock={() => {
-                void handleLogout();
-                setSettingsOpen(false);
-              }}
-              onClose={() => setSettingsOpen(false)}
-            />
-          )}
+          <button type="button" className="btn-icon" onClick={() => setSyncOpen(true)} title="NEとの照合と画面の更新">
+            🔄 照合と更新
+          </button>
         </div>
       </header>
 
-      {configError && <p className="banner banner--error">{configError}</p>}
-
-      {locked && !authLoading && (
-        <section className="locked">
-          <div>
-            <h2>データを表示するにはキーが必要です</h2>
-            <p>右上の設定（歯車）からキーを入力してください。一度入れれば、このブラウザでは次回からそのまま表示されます。</p>
-          </div>
-          <button type="button" className="button button--primary" onClick={() => setSettingsOpen(true)}>
-            キーを入力
-          </button>
-        </section>
-      )}
-
-      <section className="hero">
-        <div className="hero-main">
-          <p className="eyebrow">在庫金額（便ごとの原価・先入先出）</p>
-          <p className="hero-value">{locked ? "¥ —" : yen(totals.value)}</p>
-          <p className="hero-sub">
-            {locked ? "キーを入力すると表示されます" : lastCheck ? `最終照合 ${dateTime(lastCheck.takenAt)}（${lastCheck.source === "cron" ? "自動" : "手動"}）` : "まだNEと照合していません"}
-            {loadedAt && <span>　表示 {dateTime(loadedAt)}</span>}
-          </p>
-          {!locked && (
-          <dl className="kpis">
-            <div>
-              <dt>在庫数</dt>
-              <dd>{count(totals.qty)}<small>個</small></dd>
-            </div>
-            <div>
-              <dt>商品数</dt>
-              <dd>{count(totals.products)}</dd>
-            </div>
-            <div>
-              <dt>前月末</dt>
-              <dd>
-                {previousMonthEnd ? yen(previousMonthEnd.totalValueJpy) : "—"}
-                {monthDiff !== null && (
-                  <small className={monthDiff >= 0 ? "up" : "down"}>
-                    {monthDiff >= 0 ? "+" : "−"}
-                    {yen(Math.abs(monthDiff))}
-                  </small>
-                )}
-              </dd>
-            </div>
-            <div className={totals.review > 0 ? "kpi-warn" : ""}>
-              <dt>要確認</dt>
-              <dd>{count(totals.review)}</dd>
-            </div>
-          </dl>
-          )}
-        </div>
-
-        <div className="hero-side">
-          <div className="sync-card">
-            <h2>NEと照合</h2>
-            <p>
-              NEの在庫数と比べて、減った分を古い便から消費し、今日の在庫金額を記録します。毎日 03:20 にも自動で実行されます。
-            </p>
-            <label className="check">
-              <input type="checkbox" checked={seedOpening} onChange={(e) => setSeedOpening(e.target.checked)} />
-              便のない商品も期首在庫として登録（初回のみ）
-            </label>
-            <button
-              type="button"
-              className="button button--primary button--wide"
-              onClick={handleReconcile}
-              disabled={locked || reconciling || !NE_SYNC_WORKER_URL}
-            >
-              {reconciling ? "照合中…（商品数が多いと1分ほど）" : "NEと照合"}
-            </button>
-            {!NE_SYNC_WORKER_URL && <p className="sync-error">NEXT_PUBLIC_NE_SYNC_WORKER_URL が未設定です。</p>}
-            {reconcileError && (
-              <p className="sync-error">
-                {reconcileError}
-                {reauthUrl && (
-                  <>
-                    {" "}
-                    <a href={reauthUrl} target="_blank" rel="noreferrer">NE認証をやり直す</a>
-                  </>
-                )}
-              </p>
-            )}
-            {reconcileResult && !reconcileError && (
-              <p className="sync-result">
-                {count(reconcileResult.checkedCount)}商品を照合
-                {reconcileResult.consumedTotal > 0 && `／古い便から${count(reconcileResult.consumedTotal)}個消費`}
-                {reconcileResult.openingProducts > 0 && `／期首在庫 ${count(reconcileResult.openingProducts)}商品`}
-                {reconcileResult.adjustedProducts > 0 && `／在庫増の調整 ${count(reconcileResult.adjustedProducts)}商品`}
-                {reconcileResult.notFoundCount > 0 && `／NEにない商品 ${count(reconcileResult.notFoundCount)}件`}
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {!locked && (
-      <>
-      <TrendChart snapshots={snapshots} />
-
-      {loadError && (
-        <p className="banner banner--error">
-          {loadError}
-          <button type="button" className="link" onClick={() => void loadAll()}>再読み込み</button>
-        </p>
-      )}
-
-      <nav className="tabs" aria-label="表示切替">
+      <nav className="tab-bar">
         {(
           [
-            ["products", "商品別", totals.products],
-            ["shipments", "便別", shipments.length],
-            ["snapshots", "日ごとの記録", snapshots.length],
-            ["logs", "照合ログ", null],
+            ["products", "📦 商品別", locked ? null : totals.products],
+            ["shipments", "🚚 便別", locked ? null : shipments.length],
+            ["snapshots", "📅 日ごとの記録", locked ? null : snapshots.length],
+            ["logs", "🕒 照合ログ", null],
           ] as const
         ).map(([key, label, n]) => (
-          <button key={key} type="button" className={tab === key ? "is-active" : ""} onClick={() => setTab(key)}>
+          <button key={key} type="button" className={`tab-btn ${tab === key ? "active" : ""}`} onClick={() => setTab(key)}>
             {label}
-            {n !== null && <span>{count(n)}</span>}
+            {n !== null && <span className="cnt">{count(n)}</span>}
           </button>
         ))}
-        <button type="button" className="tabs-reload link" onClick={() => void loadAll()} disabled={loading}>
-          {loading ? "読み込み中…" : "最新にする"}
-        </button>
       </nav>
 
-      <section className="panel">
-        {tab === "products" && <ProductsView products={products} />}
-        {tab === "shipments" && <ShipmentsView shipments={shipments} />}
-        {tab === "snapshots" && <SnapshotsView snapshots={snapshots} />}
-        {tab === "logs" && <LogsView logs={logs} />}
-      </section>
-      </>
+      {configError && <div className="banner banner--error banner--page">{configError}</div>}
+
+      {locked ? (
+        <main className="content">
+          <div className="panel">
+            <div className="empty-state">
+              <div className="empty-icon">🔒</div>
+              <div className="empty-title">{authLoading ? "確認中…" : "キーを入力するとデータが表示されます"}</div>
+              {!authLoading && (
+                <>
+                  <div className="empty-desc">「⚙ 設定」からキーを入力してください。一度入れれば、このブラウザでは次回からそのまま表示されます。</div>
+                  <button type="button" className="btn-primary" onClick={() => setSettingsOpen(true)}>
+                    ⚙ 設定を開く
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </main>
+      ) : (
+        <>
+          {tab === "products" && <ProductsView products={products} top={top} />}
+          {tab === "shipments" && <ShipmentsView shipments={shipments} top={top} />}
+          {tab === "snapshots" && <SnapshotsView snapshots={snapshots} top={top} />}
+          {tab === "logs" && <LogsView logs={logs} top={top} />}
+        </>
       )}
 
       <footer className="footer">
-        在庫金額 = 各便の残り × その便の1単位原価（単価＋オプション＋中国内運賃＋国際送料）。
-        出荷はNEの在庫数の減少として、古い便から消費します。前月末は {previousMonthEnd ? dateOnly(previousMonthEnd.snapshotDate) : "—"} の記録です。
+        在庫金額 = 各便の残り × その便の1単位原価（単価＋オプション＋中国内運賃＋国際送料）。出荷はNEの在庫数の減少として、古い便から消費します。
       </footer>
-    </main>
+
+      {settingsOpen && (
+        <SettingsPanel
+          isUnlocked={!locked}
+          onLock={() => {
+            void handleLogout();
+            setSettingsOpen(false);
+          }}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+      {syncOpen && (
+        <SyncModal
+          onClose={() => setSyncOpen(false)}
+          locked={locked}
+          totalValue={locked ? null : totals.value}
+          lastCheckAt={lastCheck?.takenAt ?? null}
+          lastCheckSource={lastCheck?.source ?? null}
+          loadedAt={loadedAt}
+          loading={loading}
+          onReload={() => void loadAll()}
+          seedOpening={seedOpening}
+          onSeedOpeningChange={setSeedOpening}
+          reconciling={reconciling}
+          onReconcile={() => void handleReconcile()}
+          reconcileResult={reconcileResult}
+          reconcileError={reconcileError}
+          reauthUrl={reauthUrl}
+          workerConfigured={Boolean(NE_SYNC_WORKER_URL)}
+        />
+      )}
+    </>
   );
 }

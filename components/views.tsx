@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, ReactNode, useEffect, useMemo, useState } from "react";
 import {
   fetchLots,
   fetchSnapshotItems,
@@ -35,8 +35,9 @@ export function TrendChart({ snapshots }: { snapshots: SnapshotRow[] }) {
 
   if (points.length < 2) {
     return (
-      <div className="trend trend--empty">
-        <p>在庫金額の推移は、照合が2日分以上たまると表示されます（毎日 03:20 に自動で照合します）。</p>
+      <div className="panel trend">
+        <div className="panel-head"><h2>📈 在庫金額の推移</h2></div>
+        <p className="panel-empty">照合が2日分以上たまると表示されます（毎日 03:20 に自動で照合します）。</p>
       </div>
     );
   }
@@ -60,13 +61,14 @@ export function TrendChart({ snapshots }: { snapshots: SnapshotRow[] }) {
   const activeIndex = hover ?? points.length - 1;
 
   return (
-    <div className="trend">
-      <div className="trend-head">
-        <span>在庫金額の推移</span>
-        <strong>
-          {dateOnly(active.snapshotDate)}　{yen(active.totalValueJpy)}
-        </strong>
+    <div className="panel trend">
+      <div className="panel-head">
+        <h2>📈 在庫金額の推移</h2>
+        <span className="panel-head-value">
+          {dateOnly(active.snapshotDate)}　<b>{yen(active.totalValueJpy)}</b>
+        </span>
       </div>
+      <div className="trend-body">
       <svg
         className="trend-svg"
         viewBox={`0 0 ${W} ${H}`}
@@ -96,6 +98,7 @@ export function TrendChart({ snapshots }: { snapshots: SnapshotRow[] }) {
         <span>{dateOnly(points[0].snapshotDate)}</span>
         <span>{dateOnly(points[points.length - 1].snapshotDate)}</span>
       </div>
+      </div>
     </div>
   );
 }
@@ -107,7 +110,7 @@ export function TrendChart({ snapshots }: { snapshots: SnapshotRow[] }) {
 type ProductFilter = "stock" | "all" | "review";
 type ProductSort = "value" | "qty" | "code";
 
-export function ProductsView({ products }: { products: ProductRow[] }) {
+export function ProductsView({ products, top }: { products: ProductRow[]; top: ReactNode }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProductFilter>("stock");
   const [sort, setSort] = useState<ProductSort>("value");
@@ -153,107 +156,122 @@ export function ProductsView({ products }: { products: ProductRow[] }) {
   }
 
   return (
-    <div className="view">
-      <div className="toolbar">
-        <input
-          className="search"
-          type="search"
-          placeholder="商品コード・商品名で検索"
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setLimit(200);
-          }}
-        />
-        <div className="segmented" role="group" aria-label="絞り込み">
+    <>
+      <section className="toolbar">
+        <div className="search-box">
+          <span>⌕</span>
+          <input
+            type="search"
+            placeholder="商品コード・商品名で検索..."
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setLimit(200);
+            }}
+          />
+        </div>
+        <div className="seg" role="group" aria-label="絞り込み">
           {(
             [
-              ["stock", "在庫あり"],
-              ["all", "すべて"],
-              ["review", `要確認${reviewCount ? ` ${reviewCount}` : ""}`],
+              ["stock", "在庫あり", products.filter((row) => row.qty > 0).length],
+              ["all", "すべて", products.length],
+              ["review", "要確認", reviewCount],
             ] as const
-          ).map(([key, label]) => (
-            <button key={key} type="button" className={filter === key ? "is-active" : ""} onClick={() => setFilter(key)}>
+          ).map(([key, label, n]) => (
+            <button key={key} type="button" className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>
               {label}
+              <span className="seg-cnt">{n}</span>
             </button>
           ))}
         </div>
-        <select className="select" value={sort} onChange={(event) => setSort(event.target.value as ProductSort)} aria-label="並び順">
-          <option value="value">金額の大きい順</option>
-          <option value="qty">在庫数の多い順</option>
-          <option value="code">商品コード順</option>
-        </select>
-        <button type="button" className="button" onClick={exportCsv} disabled={rows.length === 0}>
-          CSV出力
+        <label className="toolbar-select">
+          <span>並び替え</span>
+          <select value={sort} onChange={(event) => setSort(event.target.value as ProductSort)}>
+            <option value="value">在庫金額が大きい</option>
+            <option value="qty">在庫数が多い</option>
+            <option value="code">商品コード 昇順</option>
+          </select>
+        </label>
+        <div className="toolbar-spacer" />
+        <span className="result-count">
+          {count(rows.length)}商品・{count(totalQty)}個・{yen(totalValue)}
+        </span>
+        <button type="button" className="btn-add" onClick={exportCsv} disabled={rows.length === 0}>
+          ⤓ CSV出力
         </button>
-      </div>
+      </section>
 
-      <p className="view-summary">
-        {count(rows.length)}商品　在庫 {count(totalQty)}個　<strong>{yen(totalValue)}</strong>
-      </p>
-
-      {rows.length === 0 ? (
-        <p className="empty">
-          {products.length === 0
-            ? "まだ便ごとの在庫がありません。入庫一括でNE更新すると登録されます。今ある在庫をまとめて登録するには「NEと照合」で「便のない商品も期首在庫として登録」を選んでください。"
-            : "条件に合う商品がありません。"}
-        </p>
-      ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>商品コード</th>
-                <th>商品名</th>
-                <th className="num">在庫数</th>
-                <th className="num">在庫金額</th>
-                <th className="num">平均原価</th>
-                <th className="num">最新の便の原価</th>
-                <th className="num">便</th>
-                <th>状態</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.slice(0, limit).map((row) => {
-                const isOpen = expanded === row.productCodeLc;
-                return (
-                  <Fragment key={row.productCodeLc}>
-                    <tr
-                      className={`row-clickable ${isOpen ? "is-open" : ""}`}
-                      onClick={() => setExpanded(isOpen ? null : row.productCodeLc)}
-                    >
-                      <td className="code">
-                        <span className="chevron" aria-hidden="true">{isOpen ? "▾" : "▸"}</span>
-                        {row.productCode}
-                      </td>
-                      <td className="name">{row.productName}</td>
-                      <td className="num">{count(row.qty)}</td>
-                      <td className="num strong">{yen(row.valueJpy)}</td>
-                      <td className="num">{unitYen(row.avgUnitCost)}</td>
-                      <td className="num">{unitYen(row.latestUnitCost)}</td>
-                      <td className="num">{row.openLots}</td>
-                      <td>{row.needsReview ? <span className="badge badge--warn">要確認</span> : null}</td>
-                    </tr>
-                    {isOpen && (
-                      <tr className="detail-row">
-                        <td colSpan={8}>
-                          <LotDetail productCodeLc={row.productCodeLc} />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-          {rows.length > limit && (
-            <button type="button" className="more" onClick={() => setLimit((v) => v + 500)}>
-              さらに表示（残り {count(rows.length - limit)}件）
-            </button>
+      <main className="content">
+        {top}
+        <div className="panel">
+          {rows.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📭</div>
+              <div className="empty-title">{products.length === 0 ? "まだ便ごとの在庫がありません" : "条件に合う商品がありません"}</div>
+              {products.length === 0 && (
+                <div className="empty-desc">
+                  入庫一括でNE更新すると登録されます。今ある在庫をまとめて登録するには「🔄 照合と更新」で「便のない商品も期首在庫として登録」を選んで照合してください。
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>商品コード</th>
+                    <th>商品名</th>
+                    <th className="num">在庫数</th>
+                    <th className="num">在庫金額</th>
+                    <th className="num">平均原価</th>
+                    <th className="num">最新の便の原価</th>
+                    <th className="num">便</th>
+                    <th>状態</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.slice(0, limit).map((row) => {
+                    const isOpen = expanded === row.productCodeLc;
+                    return (
+                      <Fragment key={row.productCodeLc}>
+                        <tr
+                          className={`row-clickable ${isOpen ? "is-open" : ""}`}
+                          onClick={() => setExpanded(isOpen ? null : row.productCodeLc)}
+                        >
+                          <td className="code">
+                            <span className="chevron" aria-hidden="true">{isOpen ? "▾" : "▸"}</span>
+                            {row.productCode}
+                          </td>
+                          <td className="name">{row.productName}</td>
+                          <td className="num">{count(row.qty)}</td>
+                          <td className="num strong">{yen(row.valueJpy)}</td>
+                          <td className="num">{unitYen(row.avgUnitCost)}</td>
+                          <td className="num">{unitYen(row.latestUnitCost)}</td>
+                          <td className="num">{row.openLots}</td>
+                          <td>{row.needsReview ? <span className="status warn">要確認</span> : <span className="status success">OK</span>}</td>
+                        </tr>
+                        {isOpen && (
+                          <tr className="detail-row">
+                            <td colSpan={8}>
+                              <LotDetail productCodeLc={row.productCodeLc} />
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {rows.length > limit && (
+                <button type="button" className="more" onClick={() => setLimit((v) => v + 500)}>
+                  さらに表示（残り {count(rows.length - limit)}件）
+                </button>
+              )}
+            </div>
           )}
         </div>
-      )}
-    </div>
+      </main>
+    </>
   );
 }
 
@@ -289,12 +307,12 @@ function LotDetail({ productCodeLc }: { productCodeLc: string }) {
       <div className="detail-head">
         <span>新しい順。出荷はいちばん下（古い便）から消費されます。</span>
         {usedCount > 0 && (
-          <button type="button" className="link" onClick={() => setShowUsed((v) => !v)}>
+          <button type="button" className="text-btn" onClick={() => setShowUsed((v) => !v)}>
             {showUsed ? "使い切った便を隠す" : `使い切った便も表示（${usedCount}）`}
           </button>
         )}
       </div>
-      <table className="table table--inner">
+      <table className="tbl tbl--inner">
         <thead>
           <tr>
             <th>種類</th>
@@ -316,7 +334,7 @@ function LotDetail({ productCodeLc }: { productCodeLc: string }) {
             <tr key={lot.id} className={lot.qtyRemaining === 0 ? "is-used" : ""}>
               <td>
                 {lotTypeLabel[lot.lotType]}
-                {lot.needsReview && <span className="badge badge--warn">要確認</span>}
+                {lot.needsReview && <span className="status warn">要確認</span>}
               </td>
               <td>{lot.lotType === "shipment" ? shipmentLabel(lot.shipmentId) : "—"}</td>
               <td>{dateOnly(lot.receivedAt)}</td>
@@ -341,14 +359,27 @@ function LotDetail({ productCodeLc }: { productCodeLc: string }) {
 /* 便別                                                                 */
 /* ------------------------------------------------------------------ */
 
-export function ShipmentsView({ shipments }: { shipments: ShipmentRow[] }) {
-  if (shipments.length === 0) {
-    return <p className="empty">まだ便が登録されていません。入庫一括でNE更新すると、配送依頼書ごとに登録されます。</p>;
-  }
+export function ShipmentsView({ shipments, top }: { shipments: ShipmentRow[]; top: ReactNode }) {
+  const remaining = shipments.reduce((sum, row) => sum + row.valueRemainingJpy, 0);
   return (
-    <div className="view">
-      <div className="table-wrap">
-        <table className="table">
+    <>
+      <section className="toolbar">
+        <div className="toolbar-title">便別（配送依頼書ごと）</div>
+        <div className="toolbar-spacer" />
+        <span className="result-count">{count(shipments.length)}便・残り {yen(remaining)}</span>
+      </section>
+      <main className="content">
+        {top}
+        <div className="panel">
+      {shipments.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">🚚</div>
+          <div className="empty-title">まだ便が登録されていません</div>
+          <div className="empty-desc">入庫一括でNE更新すると、配送依頼書ごとに登録されます。</div>
+        </div>
+      ) : (
+      <div className="tbl-wrap">
+        <table className="tbl">
           <thead>
             <tr>
               <th>便</th>
@@ -385,10 +416,10 @@ export function ShipmentsView({ shipments }: { shipments: ShipmentRow[] }) {
                     {count(row.qtyRemaining)} / {count(row.qtyIn)}
                   </td>
                   <td className="num strong">{yen(row.valueRemainingJpy)}</td>
-                  <td>
-                    {row.unallocatedJpy > 0.5 && <span className="badge badge--danger">未割当 {yen(row.unallocatedJpy)}</span>}
-                    {row.needsReview && <span className="badge badge--warn">要確認</span>}
-                    {row.qtyIn > 0 && row.qtyRemaining === 0 && <span className="badge">使い切り</span>}
+                  <td className="statuses">
+                    {row.unallocatedJpy > 0.5 && <span className="status error">未割当 {yen(row.unallocatedJpy)}</span>}
+                    {row.needsReview && <span className="status warn">要確認</span>}
+                    {row.qtyIn > 0 && row.qtyRemaining === 0 ? <span className="status paused">使い切り</span> : <span className="status monitoring">在庫あり</span>}
                   </td>
                 </tr>
               );
@@ -396,7 +427,10 @@ export function ShipmentsView({ shipments }: { shipments: ShipmentRow[] }) {
           </tbody>
         </table>
       </div>
-    </div>
+      )}
+        </div>
+      </main>
+    </>
   );
 }
 
@@ -404,7 +438,7 @@ export function ShipmentsView({ shipments }: { shipments: ShipmentRow[] }) {
 /* スナップショット                                                     */
 /* ------------------------------------------------------------------ */
 
-export function SnapshotsView({ snapshots }: { snapshots: SnapshotRow[] }) {
+export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; top: ReactNode }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [monthEndOnly, setMonthEndOnly] = useState(false);
@@ -440,26 +474,35 @@ export function SnapshotsView({ snapshots }: { snapshots: SnapshotRow[] }) {
     }
   }
 
-  if (snapshots.length === 0) {
-    return <p className="empty">まだ記録がありません。「NEと照合」を押すか、毎日 03:20 の自動照合で、その日の在庫金額が保存されます。</p>;
-  }
-
   return (
-    <div className="view">
-      <div className="toolbar">
-        <div className="segmented" role="group" aria-label="表示">
-          <button type="button" className={!monthEndOnly ? "is-active" : ""} onClick={() => setMonthEndOnly(false)}>
+    <>
+      <section className="toolbar">
+        <div className="toolbar-title">日ごとの記録</div>
+        <div className="seg" role="group" aria-label="表示">
+          <button type="button" className={!monthEndOnly ? "active" : ""} onClick={() => setMonthEndOnly(false)}>
             毎日
           </button>
-          <button type="button" className={monthEndOnly ? "is-active" : ""} onClick={() => setMonthEndOnly(true)}>
+          <button type="button" className={monthEndOnly ? "active" : ""} onClick={() => setMonthEndOnly(true)}>
             月ごとの最終日
           </button>
         </div>
-        <span className="toolbar-note">1日1件。同じ日に何度照合しても最後の結果で上書きされます。</span>
-      </div>
-      {error && <p className="detail-error">{error}</p>}
-      <div className="table-wrap">
-        <table className="table">
+        <p className="toolbar-note">1日1件。同じ日に何度照合しても最後の結果で上書きされます。</p>
+        <div className="toolbar-spacer" />
+        <span className="result-count">{count(rows.length)}件</span>
+      </section>
+      <main className="content">
+        {top}
+        {error && <p className="form-error">{error}</p>}
+        <div className="panel">
+      {snapshots.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">📅</div>
+          <div className="empty-title">まだ記録がありません</div>
+          <div className="empty-desc">「🔄 照合と更新」で照合するか、毎日 03:20 の自動照合で、その日の在庫金額が保存されます。</div>
+        </div>
+      ) : (
+      <div className="tbl-wrap">
+        <table className="tbl">
           <thead>
             <tr>
               <th>日付</th>
@@ -477,13 +520,13 @@ export function SnapshotsView({ snapshots }: { snapshots: SnapshotRow[] }) {
               <tr key={row.snapshotDate}>
                 <td className="code">{dateOnly(row.snapshotDate)}</td>
                 <td className="muted">{dateTime(row.takenAt)}</td>
-                <td>{row.source === "cron" ? "自動" : "手動"}</td>
+                <td>{row.source === "cron" ? <span className="status success">自動</span> : <span className="status monitoring">手動</span>}</td>
                 <td className="num strong">{yen(row.totalValueJpy)}</td>
                 <td className="num">{count(row.totalQty)}</td>
                 <td className="num">{count(row.productCount)}</td>
                 <td className="num">{row.needsReviewCount > 0 ? count(row.needsReviewCount) : ""}</td>
                 <td className="num">
-                  <button type="button" className="link" onClick={() => download(row.snapshotDate)} disabled={busy !== null}>
+                  <button type="button" className="text-btn" onClick={() => download(row.snapshotDate)} disabled={busy !== null}>
                     {busy === row.snapshotDate ? "作成中…" : "商品別CSV"}
                   </button>
                 </td>
@@ -492,7 +535,10 @@ export function SnapshotsView({ snapshots }: { snapshots: SnapshotRow[] }) {
           </tbody>
         </table>
       </div>
-    </div>
+      )}
+        </div>
+      </main>
+    </>
   );
 }
 
@@ -500,7 +546,7 @@ export function SnapshotsView({ snapshots }: { snapshots: SnapshotRow[] }) {
 /* 照合ログ                                                             */
 /* ------------------------------------------------------------------ */
 
-export function LogsView({ logs }: { logs: LogRow[] }) {
+export function LogsView({ logs, top }: { logs: LogRow[]; top: ReactNode }) {
   const [query, setQuery] = useState("");
   const [changesOnly, setChangesOnly] = useState(true);
   const rows = logs.filter((row) => {
@@ -508,20 +554,31 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
     return !query.trim() || row.productCode.toLowerCase().includes(query.trim().toLowerCase());
   });
 
-  if (logs.length === 0) return <p className="empty">まだ照合の記録がありません。</p>;
-
   return (
-    <div className="view">
-      <div className="toolbar">
-        <input className="search" type="search" placeholder="商品コードで絞り込み" value={query} onChange={(e) => setQuery(e.target.value)} />
+    <>
+      <section className="toolbar">
+        <div className="search-box">
+          <span>⌕</span>
+          <input type="search" placeholder="商品コードで絞り込み..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
         <label className="check">
           <input type="checkbox" checked={changesOnly} onChange={(e) => setChangesOnly(e.target.checked)} />
           変化があったものだけ
         </label>
-        <span className="toolbar-note">最新500件</span>
-      </div>
-      <div className="table-wrap">
-        <table className="table">
+        <div className="toolbar-spacer" />
+        <span className="result-count">{count(rows.length)}件（最新500件から）</span>
+      </section>
+      <main className="content">
+        {top}
+        <div className="panel">
+      {rows.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">🕒</div>
+          <div className="empty-title">まだ照合の記録がありません</div>
+        </div>
+      ) : (
+      <div className="tbl-wrap">
+        <table className="tbl">
           <thead>
             <tr>
               <th>日時</th>
@@ -540,7 +597,7 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
               <tr key={row.id}>
                 <td className="muted">{dateTime(row.loggedAt)}</td>
                 <td className="code">{row.productCode}</td>
-                <td>{row.event === "receipt" ? `入庫 ${shipmentLabel(row.shipmentId)}` : "照合"}</td>
+                <td>{row.event === "receipt" ? <span className="status monitoring">入庫 {shipmentLabel(row.shipmentId)}</span> : <span className="status paused">照合</span>}</td>
                 <td className="num">{count(row.neStock)}</td>
                 <td className="num">{count(row.lotsQtyBefore)}</td>
                 <td className="num">{row.consumed ? count(row.consumed) : ""}</td>
@@ -552,6 +609,9 @@ export function LogsView({ logs }: { logs: LogRow[] }) {
           </tbody>
         </table>
       </div>
-    </div>
+      )}
+        </div>
+      </main>
+    </>
   );
 }
