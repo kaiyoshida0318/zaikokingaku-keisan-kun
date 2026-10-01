@@ -1,0 +1,49 @@
+# 在庫金額計算くん（zaikokingaku-keisan-kun）
+
+入庫一括が登録した「便ごとの原価」をもとに、先入先出で商品ごと・全体の在庫金額を表示するアプリです。
+
+```
+在庫金額 = 各便の残り × その便の1単位原価（単価＋オプション＋中国内運賃＋国際送料）
+```
+
+## できること
+
+- **在庫金額の合計・在庫数・商品数・前月末との差**
+- **NEと照合**：NEの在庫数と比べて、減った分を古い便から消費し、今日の在庫金額を記録（毎日 03:20 JST にも自動実行）
+  - 初回だけ「便のない商品も期首在庫として登録」にチェックすると、商品DBの全商品をNEの在庫数・原価で登録します
+- **商品別**：検索・絞り込み・並べ替え・CSV出力。行をクリックすると便ごとの残り・原価の内訳
+- **便別**：配送依頼書ごとの合計原価・国際送料・残り
+- **日ごとの記録**：日次の在庫金額（月ごとの最終日だけの表示も可）。日付ごとに商品別CSVをダウンロードできるので、月末の棚卸金額の控えに使えます
+- **照合ログ**：いつ・どの商品で、古い便からいくつ消費したか
+
+## しくみ
+
+| 場所 | 役割 |
+| --- | --- |
+| 入庫一括 | NE更新のときに便ごとの原価を `cost_lots` に登録 |
+| ne-sync-worker `POST /api/cost/reconcile` | NE在庫で照合（`cost_reconcile_stock`）→ 今日の記録（`cost_take_snapshot`）。Cron `20 18 * * *` で毎日実行 |
+| Supabase | `cost_lots`・`cost_shipments`・`cost_inventory_snapshots`・`cost_stock_log` と集計ビュー |
+| このアプリ | 表示と「NEと照合」ボタン |
+
+## セットアップ
+
+1. Supabase SQL Editor で、入庫一括の `supabase/cost_lots.sql` → このリポジトリの `supabase/zaiko_kingaku.sql` の順に実行
+2. ne-sync-worker を更新してデプロイ（`/api/cost/reconcile` と毎日の Cron）
+3. GitHub に `zaikokingaku-keisan-kun` リポジトリを作り、Repository secrets に以下を登録（入庫一括と同じ値）
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_AUTH_API_BASE_URL`
+   - `NEXT_PUBLIC_NE_SYNC_WORKER_URL`
+4. Settings → Pages の Source を「GitHub Actions」にして push（`.github/workflows/deploy.yml` がビルド・公開します）
+
+公開URLは `https://<ユーザー名>.github.io/zaikokingaku-keisan-kun/` です。ne-sync-worker の `ALLOWED_ORIGIN` は入庫一括と同じオリジン（`https://<ユーザー名>.github.io`）なので変更不要です。
+
+ログインは入庫一括と同じ秘密の質問ログインです。
+
+## ローカル起動
+
+```bash
+npm install
+cp .env.local.example .env.local
+npm run dev
+```
