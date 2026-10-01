@@ -1,12 +1,11 @@
+import { assetPath } from "@/lib/supabaseClient";
+
+// ロゴ（ライト/ダークで出し分け。切り替えは globals.css の data-theme で行う）
 export default function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={`brand ${compact ? "brand--compact" : ""}`}>
-      <span className="brand-icon" aria-hidden="true">
-        <svg viewBox="0 0 64 64">
-          <path d="M20 14l12 17 12-17M32 31v20M22 35h20M22 43h20" />
-        </svg>
-      </span>
-      <span className="brand-name">在庫金額計算くん</span>
-    </div>
+    <h1 className={`brand ${compact ? "brand--compact" : ""}`}>
+      <img className="brand-logo brand-logo--light" src={assetPath("/logo.png")} alt="在庫金額計算くん" />
+      <img className="brand-logo brand-logo--dark" src={assetPath("/logo-dark.png")} alt="" aria-hidden="true" />
+    </h1>
   );
 }

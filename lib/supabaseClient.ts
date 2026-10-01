@@ -14,7 +14,7 @@ function normalizeSupabaseProjectUrl(input: string | undefined): string {
   }
 }
 
-const supabaseUrl = normalizeSupabaseProjectUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
+export const supabaseUrl = normalizeSupabaseProjectUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
 const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim().replace(/^['"]|['"]$/g, "");
 
 export const supabase =
@@ -37,3 +37,7 @@ export function getSupabaseConfigError(): string | null {
 /** キー入力だけで入るための専用ユーザーのメールアドレス（秘密ではない）。パスワードがキー */
 export const LOGIN_EMAIL = String(process.env.NEXT_PUBLIC_ZAIKO_LOGIN_EMAIL ?? "").trim();
 export const NE_SYNC_WORKER_URL = String(process.env.NEXT_PUBLIC_NE_SYNC_WORKER_URL ?? "").trim().replace(/\/+$/, "");
+
+/** GitHub Pages のサブパス（next.config.mjs の basePath と同じ） */
+export const BASE_PATH = process.env.NODE_ENV === "production" ? "/zaikokingaku-keisan-kun" : "";
+export const assetPath = (path: string) => `${BASE_PATH}${path}`;

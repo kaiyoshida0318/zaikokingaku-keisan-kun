@@ -17,7 +17,7 @@ import {
 import { count, dateOnly, dateTime, yen } from "@/lib/format";
 import { getSupabaseConfigError, NE_SYNC_WORKER_URL, supabase, ZAIKO_AUTH_STORAGE_KEY } from "@/lib/supabaseClient";
 import BrandMark from "./BrandMark";
-import LoginPanel from "./LoginPanel";
+import SettingsPanel from "./SettingsPanel";
 import { LogsView, ProductsView, ShipmentsView, SnapshotsView, TrendChart } from "./views";
 
 type Tab = "products" | "shipments" | "snapshots" | "logs";
@@ -55,6 +55,7 @@ export default function ZaikoApp() {
   const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
   const [reconcileError, setReconcileError] = useState<string | null>(null);
   const [reauthUrl, setReauthUrl] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     setTheme(readTheme());
@@ -166,32 +167,17 @@ export default function ZaikoApp() {
       }
       setAccessToken("");
       setEmail("");
+      setProducts([]);
+      setShipments([]);
+      setSnapshots([]);
+      setLogs([]);
+      setReconcileResult(null);
+      setLoadedAt(null);
     }
   }
 
   const configError = getSupabaseConfigError();
-  if (configError) {
-    return (
-      <main className="auth-shell">
-        <div className="auth-card">
-          <BrandMark />
-          <p className="auth-error">{configError}</p>
-        </div>
-      </main>
-    );
-  }
-  if (authLoading) {
-    return (
-      <main className="auth-shell">
-        <div className="auth-card">
-          <BrandMark />
-          <p className="muted">ログイン状態を確認中…</p>
-        </div>
-      </main>
-    );
-  }
-  if (!isLoggedIn) return <LoginPanel />;
-
+  const locked = !isLoggedIn;
   const monthDiff = previousMonthEnd ? totals.value - previousMonthEnd.totalValueJpy : null;
 
   return (
@@ -199,30 +185,61 @@ export default function ZaikoApp() {
       <header className="topbar">
         <BrandMark compact />
         <div className="topbar-actions">
+          <span className={`lock-state ${locked ? "is-locked" : "is-open"}`} title={email || undefined}>
+            <span className={`dot ${locked ? "" : "dot--on"}`} />
+            {authLoading ? "確認中" : locked ? "キー未入力" : "表示中"}
+          </span>
           <button
             type="button"
-            className="icon-button"
-            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-            aria-label={theme === "dark" ? "ライトモードにする" : "ダークモードにする"}
-            title={theme === "dark" ? "ライトモード" : "ダークモード"}
+            className={`icon-button ${settingsOpen ? "is-active" : ""}`}
+            onClick={() => setSettingsOpen((v) => !v)}
+            aria-label="設定"
+            aria-expanded={settingsOpen}
+            title="設定"
           >
-            {theme === "dark" ? "☀" : "☾"}
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+            </svg>
           </button>
-          <span className="user" title={email}>{email}</span>
-          <button type="button" className="button button--ghost" onClick={handleLogout}>
-            ログアウト
-          </button>
+          {settingsOpen && (
+            <SettingsPanel
+              isUnlocked={!locked}
+              theme={theme}
+              onChangeTheme={setTheme}
+              onLock={() => {
+                void handleLogout();
+                setSettingsOpen(false);
+              }}
+              onClose={() => setSettingsOpen(false)}
+            />
+          )}
         </div>
       </header>
+
+      {configError && <p className="banner banner--error">{configError}</p>}
+
+      {locked && !authLoading && (
+        <section className="locked">
+          <div>
+            <h2>データを表示するにはキーが必要です</h2>
+            <p>右上の設定（歯車）からキーを入力してください。一度入れれば、このブラウザでは次回からそのまま表示されます。</p>
+          </div>
+          <button type="button" className="button button--primary" onClick={() => setSettingsOpen(true)}>
+            キーを入力
+          </button>
+        </section>
+      )}
 
       <section className="hero">
         <div className="hero-main">
           <p className="eyebrow">在庫金額（便ごとの原価・先入先出）</p>
-          <p className="hero-value">{yen(totals.value)}</p>
+          <p className="hero-value">{locked ? "¥ —" : yen(totals.value)}</p>
           <p className="hero-sub">
-            {lastCheck ? `最終照合 ${dateTime(lastCheck.takenAt)}（${lastCheck.source === "cron" ? "自動" : "手動"}）` : "まだNEと照合していません"}
+            {locked ? "キーを入力すると表示されます" : lastCheck ? `最終照合 ${dateTime(lastCheck.takenAt)}（${lastCheck.source === "cron" ? "自動" : "手動"}）` : "まだNEと照合していません"}
             {loadedAt && <span>　表示 {dateTime(loadedAt)}</span>}
           </p>
+          {!locked && (
           <dl className="kpis">
             <div>
               <dt>在庫数</dt>
@@ -249,6 +266,7 @@ export default function ZaikoApp() {
               <dd>{count(totals.review)}</dd>
             </div>
           </dl>
+          )}
         </div>
 
         <div className="hero-side">
@@ -265,7 +283,7 @@ export default function ZaikoApp() {
               type="button"
               className="button button--primary button--wide"
               onClick={handleReconcile}
-              disabled={reconciling || !NE_SYNC_WORKER_URL}
+              disabled={locked || reconciling || !NE_SYNC_WORKER_URL}
             >
               {reconciling ? "照合中…（商品数が多いと1分ほど）" : "NEと照合"}
             </button>
@@ -294,6 +312,8 @@ export default function ZaikoApp() {
         </div>
       </section>
 
+      {!locked && (
+      <>
       <TrendChart snapshots={snapshots} />
 
       {loadError && (
@@ -328,6 +348,8 @@ export default function ZaikoApp() {
         {tab === "snapshots" && <SnapshotsView snapshots={snapshots} />}
         {tab === "logs" && <LogsView logs={logs} />}
       </section>
+      </>
+      )}
 
       <footer className="footer">
         在庫金額 = 各便の残り × その便の1単位原価（単価＋オプション＋中国内運賃＋国際送料）。
