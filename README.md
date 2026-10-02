@@ -58,3 +58,17 @@ npm install
 cp .env.local.example .env.local
 npm run dev
 ```
+
+## 店舗別の在庫金額
+
+照合のたびに、NEの商品分類タグ（`goods_tag`）を `cost_product_tags` に保存します。そのタグを `cost_store_rules`（タグ → 店舗）に当てて、商品ごとの店舗を決めます。
+
+| 商品分類タグ | 店舗 |
+|---|---|
+| 自社出荷商品 | ゆかい屋 |
+| STOCKCREW連携対象 | KAIRY |
+| SCハード資材発送 | KAIRY |
+
+- ルールを変えたいときは、Supabase の Table Editor で `cost_store_rules` を編集してください（行を足す・店舗名を変えるなど）。画面は次に更新したときから、日ごとの記録は次の照合から反映されます。
+- タグ名が商品分類タグの中に含まれていれば当たりとみなします。違う店舗のタグが両方付いている商品は「複数」、どれにも当たらない商品とタグのない商品は「未設定」になります。
+- 日ごとの記録（`cost_inventory_snapshots.by_store`）にも店舗別の金額・個数・商品数を保存します。店舗に対応する前の記録には内訳がありません。

@@ -4,6 +4,9 @@ import { Fragment, ReactNode, useEffect, useMemo, useState } from "react";
 import {
   fetchLots,
   fetchSnapshotItems,
+  MULTI_STORE,
+  sortStores,
+  UNSET_STORE,
   type LogRow,
   type LotRow,
   type ProductRow,
@@ -108,13 +111,14 @@ export function TrendChart({ snapshots }: { snapshots: SnapshotRow[] }) {
 /* ------------------------------------------------------------------ */
 
 type ProductFilter = "stock" | "all" | "review";
-type ProductSortKey = "code" | "name" | "qty" | "value" | "avg" | "latest" | "lots" | "status";
+type ProductSortKey = "code" | "name" | "store" | "qty" | "value" | "avg" | "latest" | "lots" | "status";
 type SortDir = "asc" | "desc";
 
 // 列の見出しをクリックして並び替え。数値の列は最初は大きい順、文字の列は昇順から。
 const productColumns: { key: ProductSortKey; label: string; num?: boolean; firstDir: SortDir }[] = [
   { key: "code", label: "商品コード", firstDir: "asc" },
   { key: "name", label: "商品名", firstDir: "asc" },
+  { key: "store", label: "店舗", firstDir: "asc" },
   { key: "qty", label: "在庫数", num: true, firstDir: "desc" },
   { key: "value", label: "在庫金額", num: true, firstDir: "desc" },
   { key: "avg", label: "平均原価", num: true, firstDir: "desc" },
@@ -131,6 +135,7 @@ function compareProducts(a: ProductRow, b: ProductRow, key: ProductSortKey): num
   switch (key) {
     case "code": return textCollator.compare(a.productCodeLc, b.productCodeLc);
     case "name": return textCollator.compare(a.productName, b.productName);
+    case "store": return textCollator.compare(a.store, b.store);
     case "qty": return a.qty - b.qty;
     case "value": return a.valueJpy - b.valueJpy;
     case "avg": return (a.avgUnitCost ?? 0) - (b.avgUnitCost ?? 0);
@@ -145,9 +150,81 @@ function nullLast(a: ProductRow, b: ProductRow, key: ProductSortKey): number {
   return Number(pick(a) === null) - Number(pick(b) === null);
 }
 
+/** 店舗バッジの色：上位2店舗はオレンジ・青、それ以外は緑、「複数」は黄、「未設定」はグレー */
+function storeTone(store: string, order: string[]): string {
+  if (store === UNSET_STORE) return "unset";
+  if (store === MULTI_STORE) return "multi";
+  const i = order.indexOf(store);
+  return i === 0 ? "s0" : i === 1 ? "s1" : "s2";
+}
+
+export function StoreBadge({ store, order }: { store: string; order: string[] }) {
+  return <span className={`store-badge store-badge--${storeTone(store, order)}`}>{store}</span>;
+}
+
+/** 店舗別の在庫金額（在庫のある商品）。押すと商品一覧をその店舗で絞り込む */
+function StoreBreakdown({
+  products,
+  order,
+  active,
+  onPick,
+}: {
+  products: ProductRow[];
+  order: string[];
+  active: string | null;
+  onPick: (store: string | null) => void;
+}) {
+  const totals = new Map<string, { v: number; q: number; n: number }>();
+  for (const row of products) {
+    if (row.qty <= 0) continue;
+    const t = totals.get(row.store) ?? { v: 0, q: 0, n: 0 };
+    t.v += row.valueJpy;
+    t.q += row.qty;
+    t.n += 1;
+    totals.set(row.store, t);
+  }
+  const all = [...totals.values()].reduce((sum, t) => sum + t.v, 0);
+  const stores = order.filter((store) => totals.has(store));
+  if (stores.length === 0) return null;
+  return (
+    <div className="panel store-breakdown">
+      <div className="store-breakdown-head">
+        <h2>🏬 店舗別の在庫金額</h2>
+        <span className="store-breakdown-note">NEの商品分類タグで判定（押すと商品一覧を絞り込み）</span>
+      </div>
+      <div className="store-cells">
+        {stores.map((store) => {
+          const t = totals.get(store)!;
+          const share = all > 0 ? t.v / all : 0;
+          const isActive = active === store;
+          return (
+            <button
+              key={store}
+              type="button"
+              className={`store-cell store-cell--${storeTone(store, order)} ${isActive ? "is-active" : ""}`}
+              onClick={() => onPick(isActive ? null : store)}
+              aria-pressed={isActive}
+            >
+              <span className="store-cell-name">{store}</span>
+              <span className="store-cell-value">{yen(t.v)}</span>
+              <span className="store-cell-bar" aria-hidden="true">
+                <span style={{ width: `${Math.round(share * 1000) / 10}%` }} />
+              </span>
+              <span className="store-cell-meta">
+                {(share * 100).toFixed(1)}%・{count(t.q)}個・{count(t.n)}商品
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ProductsView({ products, top }: { products: ProductRow[]; top: ReactNode }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProductFilter>("stock");
+  const [storeFilter, setStoreFilter] = useState<string | null>(null);
   const [sort, setSort] = useState<{ key: ProductSortKey; dir: SortDir }>({ key: "value", dir: "desc" });
 
   function toggleSort(key: ProductSortKey) {
@@ -165,6 +242,7 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
     const filtered = products.filter((row) => {
       if (filter === "stock" && row.qty <= 0) return false;
       if (filter === "review" && !row.needsReview) return false;
+      if (storeFilter !== null && row.store !== storeFilter) return false;
       if (!q) return true;
       return row.productCodeLc.includes(q) || row.productName.toLowerCase().includes(q);
     });
@@ -175,7 +253,14 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
         sign * compareProducts(a, b, sort.key) ||
         a.productCodeLc.localeCompare(b.productCodeLc),
     );
-  }, [products, query, filter, sort]);
+  }, [products, query, filter, storeFilter, sort]);
+
+  // 店舗の並び順（在庫金額の大きい順。「複数」「未設定」は最後）
+  const storeOrder = useMemo(() => {
+    const value = new Map<string, number>();
+    for (const row of products) value.set(row.store, (value.get(row.store) ?? 0) + row.valueJpy);
+    return sortStores(value.keys(), (store) => value.get(store) ?? 0);
+  }, [products]);
 
   const totalValue = rows.reduce((sum, row) => sum + row.valueJpy, 0);
   const totalQty = rows.reduce((sum, row) => sum + row.qty, 0);
@@ -184,10 +269,12 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
   function exportCsv() {
     downloadBlob(
       csvBlob(
-        ["商品コード", "商品名", "在庫数", "在庫金額", "平均原価", "最新の便の原価", "残っている便の数", "要確認"],
+        ["商品コード", "商品名", "店舗", "商品分類タグ", "在庫数", "在庫金額", "平均原価", "最新の便の原価", "残っている便の数", "要確認"],
         rows.map((row) => [
           row.productCode,
           row.productName,
+          row.store,
+          row.goodsTag ?? "",
           row.qty,
           Math.round(row.valueJpy),
           row.avgUnitCost ?? "",
@@ -196,7 +283,7 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
           row.needsReview ? "要確認" : "",
         ]),
       ),
-      `在庫金額_商品別_${todayJst()}.csv`,
+      `在庫金額_商品別${storeFilter ? `_${storeFilter}` : ""}_${todayJst()}.csv`,
     );
   }
 
@@ -204,6 +291,15 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
     <>
       <main className="content">
         {top}
+        <StoreBreakdown
+          products={products}
+          order={storeOrder}
+          active={storeFilter}
+          onPick={(store) => {
+            setStoreFilter(store);
+            setLimit(200);
+          }}
+        />
         <div className="panel">
           <div className="panel-toolbar">
             <h2>📋 商品一覧</h2>
@@ -233,6 +329,25 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
                 </button>
               ))}
             </div>
+            {storeOrder.length > 1 || storeOrder[0] !== UNSET_STORE ? (
+              <label className="store-select">
+                <span>店舗</span>
+                <select
+                  value={storeFilter ?? ""}
+                  onChange={(event) => {
+                    setStoreFilter(event.target.value || null);
+                    setLimit(200);
+                  }}
+                >
+                  <option value="">すべての店舗</option>
+                  {storeOrder.map((store) => (
+                    <option key={store} value={store}>
+                      {store}（{count(products.filter((row) => row.store === store && (filter !== "stock" || row.qty > 0)).length)}）
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <div className="toolbar-spacer" />
             <span className="result-count">
               {count(rows.length)}商品・{count(totalQty)}個・{yen(totalValue)}
@@ -300,6 +415,9 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
                             {row.productCode}
                           </td>
                           <td className="name">{row.productName}</td>
+                          <td title={row.goodsTag ?? "商品分類タグなし"}>
+                            <StoreBadge store={row.store} order={storeOrder} />
+                          </td>
                           <td className="num">{count(row.qty)}</td>
                           <td className="num strong">{yen(row.valueJpy)}</td>
                           <td className="num">{unitYen(row.avgUnitCost)}</td>
@@ -309,7 +427,7 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
                         </tr>
                         {isOpen && (
                           <tr className="detail-row">
-                            <td colSpan={8}>
+                            <td colSpan={productColumns.length}>
                               <LotDetail productCodeLc={row.productCodeLc} />
                             </td>
                           </tr>
@@ -512,6 +630,34 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
     });
   }, [snapshots, monthEndOnly]);
 
+  // 記録に出てくる店舗（店舗に対応する前の記録には内訳がない）
+  const stores = useMemo(() => {
+    const value = new Map<string, number>();
+    for (const row of snapshots) {
+      for (const [store, t] of Object.entries(row.byStore)) value.set(store, (value.get(store) ?? 0) + t.v);
+    }
+    return sortStores(value.keys(), (store) => value.get(store) ?? 0);
+  }, [snapshots]);
+
+  function exportList() {
+    downloadBlob(
+      csvBlob(
+        ["日付", "照合", "在庫金額", ...stores.map((store) => `${store}（金額）`), "在庫数", ...stores.map((store) => `${store}（個数）`), "商品数", "要確認"],
+        rows.map((row) => [
+          row.snapshotDate,
+          row.source === "cron" ? "自動" : "手動",
+          Math.round(row.totalValueJpy),
+          ...stores.map((store) => (row.byStore[store] ? Math.round(row.byStore[store].v) : "")),
+          row.totalQty,
+          ...stores.map((store) => row.byStore[store]?.q ?? ""),
+          row.productCount,
+          row.needsReviewCount,
+        ]),
+      ),
+      `在庫金額_${monthEndOnly ? "月末" : "日ごと"}_${todayJst()}.csv`,
+    );
+  }
+
   async function download(date: string) {
     setBusy(date);
     setError(null);
@@ -519,8 +665,8 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
       const items = await fetchSnapshotItems(date);
       downloadBlob(
         csvBlob(
-          ["商品コード", "在庫数", "在庫金額"],
-          items.map((item) => [item.c, item.q, Math.round(Number(item.v))]),
+          ["商品コード", "店舗", "在庫数", "在庫金額"],
+          items.map((item) => [item.c, item.s ?? "", item.q, Math.round(Number(item.v))]),
         ),
         `在庫金額_${date}.csv`,
       );
@@ -550,6 +696,9 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
             <p className="toolbar-note">1日1件。同じ日に何度照合しても最後の結果で上書きされます。</p>
             <div className="toolbar-spacer" />
             <span className="result-count">{count(rows.length)}件</span>
+            <button type="button" className="btn-secondary" onClick={exportList} disabled={rows.length === 0}>
+              ⤓ 一覧CSV
+            </button>
           </div>
       {snapshots.length === 0 ? (
         <div className="empty-state">
@@ -566,6 +715,9 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
               <th>記録時刻</th>
               <th>照合</th>
               <th className="num">在庫金額</th>
+              {stores.map((store) => (
+                <th key={store} className="num">{store}</th>
+              ))}
               <th className="num">在庫数</th>
               <th className="num">商品数</th>
               <th className="num">要確認</th>
@@ -579,6 +731,14 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
                 <td className="muted">{dateTime(row.takenAt)}</td>
                 <td>{row.source === "cron" ? <span className="status success">自動</span> : <span className="status monitoring">手動</span>}</td>
                 <td className="num strong">{yen(row.totalValueJpy)}</td>
+                {stores.map((store) => {
+                  const t = row.byStore[store];
+                  return (
+                    <td key={store} className="num" title={t ? `${count(t.q)}個・${count(t.n)}商品` : "この日は店舗別の内訳がありません"}>
+                      {t ? yen(t.v) : <span className="muted">—</span>}
+                    </td>
+                  );
+                })}
                 <td className="num">{count(row.totalQty)}</td>
                 <td className="num">{count(row.productCount)}</td>
                 <td className="num">{row.needsReviewCount > 0 ? count(row.needsReviewCount) : ""}</td>

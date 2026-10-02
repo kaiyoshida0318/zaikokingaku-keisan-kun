@@ -10,7 +10,17 @@ export type ProductRow = {
   latestUnitCost: number | null;
   openLots: number;
   needsReview: boolean;
+  /** 店舗（NEの商品分類タグから判定）。判定できない商品は UNSET_STORE */
+  store: string;
+  goodsTag: string | null;
 };
+
+/** 店舗が判定できない商品の表示名 */
+export const UNSET_STORE = "未設定";
+/** 違う店舗のタグが2つ以上付いている商品 */
+export const MULTI_STORE = "複数";
+
+export type StoreTotals = { v: number; q: number; n: number };
 
 export type LotRow = {
   id: number;
@@ -55,6 +65,8 @@ export type SnapshotRow = {
   totalQty: number;
   productCount: number;
   needsReviewCount: number;
+  /** 店舗別の内訳（店舗に対応する前の記録は空） */
+  byStore: Record<string, StoreTotals>;
 };
 
 export type LogRow = {
@@ -110,17 +122,22 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
 export async function fetchProducts(): Promise<ProductRow[]> {
   const db = client();
   type Raw = Record<string, unknown>;
-  const [rows, names] = await Promise.all([
+  const [rows, names, stores] = await Promise.all([
     fetchAll<Raw>((from, to) =>
       db.from("cost_inventory_by_product").select("*").order("product_code_lc").range(from, to),
     ),
     fetchAll<Raw>((from, to) =>
       db.from("products").select("product_code,product_name").order("product_code").range(from, to),
     ).catch(() => [] as Raw[]),
+    // zaiko_kingaku.sql の店舗部分をまだ実行していなくても、商品一覧は表示する
+    fetchAll<Raw>((from, to) =>
+      db.from("cost_product_store").select("product_code_lc,goods_tag,store").order("product_code_lc").range(from, to),
+    ).catch(() => [] as Raw[]),
   ]);
   const nameByCode = new Map(
     names.map((row) => [String(row.product_code ?? "").toLowerCase(), String(row.product_name ?? "")]),
   );
+  const storeByCode = new Map(stores.map((row) => [String(row.product_code_lc ?? ""), row]));
   return rows.map((row) => ({
     productCode: String(row.product_code ?? ""),
     productCodeLc: String(row.product_code_lc ?? ""),
@@ -131,6 +148,8 @@ export async function fetchProducts(): Promise<ProductRow[]> {
     latestUnitCost: numOrNull(row.latest_unit_cost),
     openLots: num(row.open_lots),
     needsReview: Boolean(row.needs_review),
+    store: String(storeByCode.get(String(row.product_code_lc ?? ""))?.store ?? "") || UNSET_STORE,
+    goodsTag: (storeByCode.get(String(row.product_code_lc ?? ""))?.goods_tag as string | null | undefined) ?? null,
   }));
 }
 
@@ -198,13 +217,14 @@ export async function fetchShipments(): Promise<ShipmentRow[]> {
 }
 
 export async function fetchSnapshots(): Promise<SnapshotRow[]> {
-  const { data, error } = await client()
-    .from("cost_inventory_snapshots")
-    .select("snapshot_date,taken_at,source,total_value_jpy,total_qty,product_count,needs_review_count")
-    .order("snapshot_date", { ascending: false })
-    .limit(400);
+  const base = "snapshot_date,taken_at,source,total_value_jpy,total_qty,product_count,needs_review_count";
+  const query = (columns: string) =>
+    client().from("cost_inventory_snapshots").select(columns).order("snapshot_date", { ascending: false }).limit(400);
+  let { data, error } = await query(`${base},by_store`);
+  // by_store 列がまだない（SQL未実行）ときは店舗なしで読む
+  if (error) ({ data, error } = await query(base));
   if (error) throw friendly(error);
-  return (data ?? []).map((row: Record<string, unknown>) => ({
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
     snapshotDate: String(row.snapshot_date),
     takenAt: String(row.taken_at ?? ""),
     source: String(row.source ?? ""),
@@ -212,17 +232,35 @@ export async function fetchSnapshots(): Promise<SnapshotRow[]> {
     totalQty: num(row.total_qty),
     productCount: num(row.product_count),
     needsReviewCount: num(row.needs_review_count),
+    byStore: parseByStore(row.by_store),
   }));
 }
 
-export async function fetchSnapshotItems(snapshotDate: string): Promise<Array<{ c: string; q: number; v: number }>> {
+function parseByStore(value: unknown): Record<string, StoreTotals> {
+  if (!value || typeof value !== "object") return {};
+  const out: Record<string, StoreTotals> = {};
+  for (const [store, raw] of Object.entries(value as Record<string, Record<string, unknown>>)) {
+    out[store] = { v: num(raw?.v), q: num(raw?.q), n: num(raw?.n) };
+  }
+  return out;
+}
+
+/** 店舗名の並び順：金額の大きい順。「複数」「未設定」は最後 */
+export function sortStores(names: Iterable<string>, valueOf: (store: string) => number): string[] {
+  const rank = (store: string) => (store === UNSET_STORE ? 2 : store === MULTI_STORE ? 1 : 0);
+  return [...new Set(names)].sort((a, b) => rank(a) - rank(b) || valueOf(b) - valueOf(a) || a.localeCompare(b, "ja"));
+}
+
+export async function fetchSnapshotItems(
+  snapshotDate: string,
+): Promise<Array<{ c: string; q: number; v: number; s?: string }>> {
   const { data, error } = await client()
     .from("cost_inventory_snapshots")
     .select("items")
     .eq("snapshot_date", snapshotDate)
     .single();
   if (error) throw friendly(error);
-  return Array.isArray(data?.items) ? (data.items as Array<{ c: string; q: number; v: number }>) : [];
+  return Array.isArray(data?.items) ? (data.items as Array<{ c: string; q: number; v: number; s?: string }>) : [];
 }
 
 export async function fetchLogs(): Promise<LogRow[]> {
@@ -260,6 +298,8 @@ export type ReconcileResult = {
   offset?: number;
   nextOffset?: number | null;
   totalCodes?: number;
+  tagsSaved?: number;
+  tagsError?: string | null;
   finishedAt: string;
 };
 
@@ -334,6 +374,8 @@ export async function runReconcile(
           adjustedProducts: total.adjustedProducts + part.adjustedProducts,
           openingProducts: total.openingProducts + part.openingProducts,
           snapshot: part.snapshot ?? total.snapshot,
+          tagsSaved: (total.tagsSaved ?? 0) + (part.tagsSaved ?? 0),
+          tagsError: total.tagsError ?? part.tagsError ?? null,
         }
       : part;
     // 古いワーカー（nextOffsetを返さない）なら1回で終わり

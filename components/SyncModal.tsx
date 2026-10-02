@@ -72,6 +72,12 @@ export default function SyncModal(props: {
               {props.reconcileResult.notFoundCount > 0 && `／NEにない商品 ${count(props.reconcileResult.notFoundCount)}件`}
             </span>
           )}
+          {props.reconcileResult?.tagsError && !props.reconcileError && (
+            <span className="form-error">
+              照合は終わりましたが、店舗の判定に使う商品分類タグを保存できませんでした（zaiko_kingaku.sql を実行してください）：
+              {props.reconcileResult.tagsError.split("\n")[0]}
+            </span>
+          )}
         </span>
         <button
           type="button"
