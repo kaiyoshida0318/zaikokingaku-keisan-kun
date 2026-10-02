@@ -202,20 +202,6 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
 
   return (
     <>
-      <section className="toolbar">
-        <div className="toolbar-title">商品別</div>
-        <div className="toolbar-spacer" />
-        <button
-          type="button"
-          className="btn-add"
-          onClick={exportCsv}
-          disabled={rows.length === 0}
-          title="商品一覧で絞り込み・並び替えした内容のまま出力します"
-        >
-          ⤓ CSV出力
-        </button>
-      </section>
-
       <main className="content">
         {top}
         <div className="panel">
@@ -251,6 +237,15 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
             <span className="result-count">
               {count(rows.length)}商品・{count(totalQty)}個・{yen(totalValue)}
             </span>
+            <button
+              type="button"
+              className="btn-add"
+              onClick={exportCsv}
+              disabled={rows.length === 0}
+              title="商品一覧で絞り込み・並び替えした内容のまま出力します"
+            >
+              ⤓ CSV出力
+            </button>
           </div>
           {rows.length === 0 ? (
             <div className="empty-state">
@@ -425,14 +420,14 @@ export function ShipmentsView({ shipments, top }: { shipments: ShipmentRow[]; to
   const remaining = shipments.reduce((sum, row) => sum + row.valueRemainingJpy, 0);
   return (
     <>
-      <section className="toolbar">
-        <div className="toolbar-title">便別（配送依頼書ごと）</div>
-        <div className="toolbar-spacer" />
-        <span className="result-count">{count(shipments.length)}便・残り {yen(remaining)}</span>
-      </section>
       <main className="content">
         {top}
         <div className="panel">
+          <div className="panel-toolbar">
+            <h2>🚚 便別（配送依頼書ごと）</h2>
+            <div className="toolbar-spacer" />
+            <span className="result-count">{count(shipments.length)}便・残り {yen(remaining)}</span>
+          </div>
       {shipments.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">🚚</div>
@@ -538,24 +533,24 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
 
   return (
     <>
-      <section className="toolbar">
-        <div className="toolbar-title">日ごとの記録</div>
-        <div className="seg" role="group" aria-label="表示">
-          <button type="button" className={!monthEndOnly ? "active" : ""} onClick={() => setMonthEndOnly(false)}>
-            毎日
-          </button>
-          <button type="button" className={monthEndOnly ? "active" : ""} onClick={() => setMonthEndOnly(true)}>
-            月ごとの最終日
-          </button>
-        </div>
-        <p className="toolbar-note">1日1件。同じ日に何度照合しても最後の結果で上書きされます。</p>
-        <div className="toolbar-spacer" />
-        <span className="result-count">{count(rows.length)}件</span>
-      </section>
       <main className="content">
         {top}
         {error && <p className="form-error">{error}</p>}
         <div className="panel">
+          <div className="panel-toolbar">
+            <h2>📅 日ごとの記録</h2>
+            <div className="seg" role="group" aria-label="表示">
+              <button type="button" className={!monthEndOnly ? "active" : ""} onClick={() => setMonthEndOnly(false)}>
+                毎日
+              </button>
+              <button type="button" className={monthEndOnly ? "active" : ""} onClick={() => setMonthEndOnly(true)}>
+                月ごとの最終日
+              </button>
+            </div>
+            <p className="toolbar-note">1日1件。同じ日に何度照合しても最後の結果で上書きされます。</p>
+            <div className="toolbar-spacer" />
+            <span className="result-count">{count(rows.length)}件</span>
+          </div>
       {snapshots.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📅</div>
@@ -618,25 +613,26 @@ export function LogsView({ logs, top }: { logs: LogRow[]; top: ReactNode }) {
 
   return (
     <>
-      <section className="toolbar">
-        <div className="search-box">
-          <span>⌕</span>
-          <input type="search" placeholder="商品コードで絞り込み..." value={query} onChange={(e) => setQuery(e.target.value)} />
-        </div>
-        <label className="check">
-          <input type="checkbox" checked={changesOnly} onChange={(e) => setChangesOnly(e.target.checked)} />
-          変化があったものだけ
-        </label>
-        <div className="toolbar-spacer" />
-        <span className="result-count">{count(rows.length)}件（最新500件から）</span>
-      </section>
       <main className="content">
         {top}
         <div className="panel">
+          <div className="panel-toolbar">
+            <h2>🕒 照合ログ</h2>
+            <div className="search-box">
+              <span>⌕</span>
+              <input type="search" placeholder="商品コードで絞り込み..." value={query} onChange={(e) => setQuery(e.target.value)} />
+            </div>
+            <label className="check">
+              <input type="checkbox" checked={changesOnly} onChange={(e) => setChangesOnly(e.target.checked)} />
+              変化があったものだけ
+            </label>
+            <div className="toolbar-spacer" />
+            <span className="result-count">{count(rows.length)}件（最新500件から）</span>
+          </div>
       {rows.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">🕒</div>
-          <div className="empty-title">まだ照合の記録がありません</div>
+          <div className="empty-title">{logs.length === 0 ? "まだ照合の記録がありません" : "条件に合う記録がありません"}</div>
         </div>
       ) : (
       <div className="tbl-wrap">
