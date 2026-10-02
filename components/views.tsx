@@ -158,45 +158,15 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
   return (
     <>
       <section className="toolbar">
-        <div className="search-box">
-          <span>⌕</span>
-          <input
-            type="search"
-            placeholder="商品コード・商品名で検索..."
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setLimit(200);
-            }}
-          />
-        </div>
-        <div className="seg" role="group" aria-label="絞り込み">
-          {(
-            [
-              ["stock", "在庫あり", products.filter((row) => row.qty > 0).length],
-              ["all", "すべて", products.length],
-              ["review", "要確認", reviewCount],
-            ] as const
-          ).map(([key, label, n]) => (
-            <button key={key} type="button" className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>
-              {label}
-              <span className="seg-cnt">{n}</span>
-            </button>
-          ))}
-        </div>
-        <label className="toolbar-select">
-          <span>並び替え</span>
-          <select value={sort} onChange={(event) => setSort(event.target.value as ProductSort)}>
-            <option value="value">在庫金額が大きい</option>
-            <option value="qty">在庫数が多い</option>
-            <option value="code">商品コード 昇順</option>
-          </select>
-        </label>
+        <div className="toolbar-title">商品別</div>
         <div className="toolbar-spacer" />
-        <span className="result-count">
-          {count(rows.length)}商品・{count(totalQty)}個・{yen(totalValue)}
-        </span>
-        <button type="button" className="btn-add" onClick={exportCsv} disabled={rows.length === 0}>
+        <button
+          type="button"
+          className="btn-add"
+          onClick={exportCsv}
+          disabled={rows.length === 0}
+          title="商品一覧で絞り込み・並び替えした内容のまま出力します"
+        >
           ⤓ CSV出力
         </button>
       </section>
@@ -204,6 +174,47 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
       <main className="content">
         {top}
         <div className="panel">
+          <div className="panel-toolbar">
+            <h2>📋 商品一覧</h2>
+            <div className="search-box">
+              <span>⌕</span>
+              <input
+                type="search"
+                placeholder="商品コード・商品名で検索..."
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setLimit(200);
+                }}
+              />
+            </div>
+            <div className="seg" role="group" aria-label="絞り込み">
+              {(
+                [
+                  ["stock", "在庫あり", products.filter((row) => row.qty > 0).length],
+                  ["all", "すべて", products.length],
+                  ["review", "要確認", reviewCount],
+                ] as const
+              ).map(([key, label, n]) => (
+                <button key={key} type="button" className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>
+                  {label}
+                  <span className="seg-cnt">{n}</span>
+                </button>
+              ))}
+            </div>
+            <label className="toolbar-select">
+              <span>並び替え</span>
+              <select value={sort} onChange={(event) => setSort(event.target.value as ProductSort)}>
+                <option value="value">在庫金額が大きい</option>
+                <option value="qty">在庫数が多い</option>
+                <option value="code">商品コード 昇順</option>
+              </select>
+            </label>
+            <div className="toolbar-spacer" />
+            <span className="result-count">
+              {count(rows.length)}商品・{count(totalQty)}個・{yen(totalValue)}
+            </span>
+          </div>
           {rows.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📭</div>
