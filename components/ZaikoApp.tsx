@@ -15,14 +15,15 @@ import {
   type ShipmentRow,
   type SnapshotRow,
 } from "@/lib/data";
-import { count, dateOnly, dateTime, yen } from "@/lib/format";
+import { count, dateTime, yen } from "@/lib/format";
 import { getSupabaseConfigError, NE_SYNC_WORKER_URL, supabase, ZAIKO_AUTH_STORAGE_KEY } from "@/lib/supabaseClient";
 import BrandMark from "./BrandMark";
 import SettingsPanel from "./SettingsPanel";
 import SyncModal from "./SyncModal";
-import { LogsView, ProductsView, ShipmentsView, SnapshotsView, TrendChart } from "./views";
+import InventorySummary from "./InventorySummary";
+import { LogsView, ProductsView, ShipmentsView, SnapshotsView, TrendView } from "./views";
 
-type Tab = "products" | "shipments" | "snapshots" | "logs";
+type Tab = "products" | "shipments" | "snapshots" | "trend" | "logs";
 
 export default function ZaikoApp() {
   const [authLoading, setAuthLoading] = useState(true);
@@ -94,19 +95,8 @@ export default function ZaikoApp() {
 
   const totals = useMemo(() => {
     const inStock = products.filter((row) => row.qty > 0);
-    return {
-      value: inStock.reduce((sum, row) => sum + row.valueJpy, 0),
-      qty: inStock.reduce((sum, row) => sum + row.qty, 0),
-      products: inStock.length,
-      review: inStock.filter((row) => row.needsReview).length,
-    };
+    return { value: inStock.reduce((sum, row) => sum + row.valueJpy, 0), products: inStock.length };
   }, [products]);
-
-  // 前月末（今月1日より前の最新スナップショット）
-  const previousMonthEnd = useMemo(() => {
-    const monthStart = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }).slice(0, 7) + "-01";
-    return snapshots.find((row) => row.snapshotDate < monthStart) ?? null;
-  }, [snapshots]);
   const lastCheck = snapshots[0] ?? null;
 
   async function handleReconcile() {
@@ -158,50 +148,9 @@ export default function ZaikoApp() {
 
   const configError = getSupabaseConfigError();
   const locked = !isLoggedIn;
-  const monthDiff = previousMonthEnd ? totals.value - previousMonthEnd.totalValueJpy : null;
 
   const metrics = locked ? null : (
-    <div className="metric-grid">
-      <div className="metric-card metric-card--main">
-        <div className="metric-icon">💴</div>
-        <div>
-          <div className="metric-value">{yen(totals.value)}</div>
-          <div className="metric-label">在庫金額（便ごとの原価・先入先出）</div>
-        </div>
-      </div>
-      <div className="metric-card">
-        <div className="metric-icon">📦</div>
-        <div>
-          <div className="metric-value">{count(totals.qty)}</div>
-          <div className="metric-label">在庫数</div>
-        </div>
-      </div>
-      <div className="metric-card">
-        <div className="metric-icon">🏷</div>
-        <div>
-          <div className="metric-value">{count(totals.products)}</div>
-          <div className="metric-label">在庫のある商品</div>
-        </div>
-      </div>
-      <div className="metric-card crown">
-        <div className="metric-icon">📅</div>
-        <div>
-          <div className="metric-value">
-            {monthDiff === null ? "—" : `${monthDiff >= 0 ? "+" : "−"}${yen(Math.abs(monthDiff))}`}
-          </div>
-          <div className="metric-label">
-            前月末比{previousMonthEnd ? `（${dateOnly(previousMonthEnd.snapshotDate)} ${yen(previousMonthEnd.totalValueJpy)}）` : ""}
-          </div>
-        </div>
-      </div>
-      <div className={`metric-card ${totals.review > 0 ? "alert" : ""}`}>
-        <div className="metric-icon">⚠️</div>
-        <div>
-          <div className="metric-value">{count(totals.review)}</div>
-          <div className="metric-label">要確認の商品</div>
-        </div>
-      </div>
-    </div>
+    <InventorySummary products={products} snapshots={snapshots} logs={logs} loadedAt={loadedAt} />
   );
 
   const top = (
@@ -213,7 +162,6 @@ export default function ZaikoApp() {
         </div>
       )}
       {metrics}
-      {(tab === "products" || tab === "snapshots") && <TrendChart snapshots={snapshots} />}
     </>
   );
 
@@ -247,6 +195,7 @@ export default function ZaikoApp() {
             ["products", "📦 商品別", locked ? null : totals.products],
             ["shipments", "🚚 便別", locked ? null : shipments.length],
             ["snapshots", "📅 日ごとの記録", locked ? null : snapshots.length],
+            ["trend", "📈 在庫の推移", null],
             ["logs", "🕒 照合ログ", null],
           ] as const
         ).map(([key, label, n]) => (
@@ -281,6 +230,7 @@ export default function ZaikoApp() {
           {tab === "products" && <ProductsView products={products} top={top} />}
           {tab === "shipments" && <ShipmentsView shipments={shipments} top={top} />}
           {tab === "snapshots" && <SnapshotsView snapshots={snapshots} top={top} />}
+          {tab === "trend" && <TrendView snapshots={snapshots} top={top} />}
           {tab === "logs" && <LogsView logs={logs} top={top} />}
         </>
       )}

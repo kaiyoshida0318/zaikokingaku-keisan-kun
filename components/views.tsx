@@ -29,7 +29,7 @@ import {
 /* 推移グラフ                                                           */
 /* ------------------------------------------------------------------ */
 
-export function TrendChart({ snapshots }: { snapshots: SnapshotRow[] }) {
+export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow[]; tall?: boolean }) {
   const points = useMemo(
     () => [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate)).slice(-120),
     [snapshots],
@@ -64,7 +64,7 @@ export function TrendChart({ snapshots }: { snapshots: SnapshotRow[] }) {
   const activeIndex = hover ?? points.length - 1;
 
   return (
-    <div className="panel trend">
+    <div className={`panel trend ${tall ? "trend--tall" : ""}`}>
       <div className="panel-head">
         <h2>📈 在庫金額の推移</h2>
         <span className="panel-head-value">
@@ -103,6 +103,16 @@ export function TrendChart({ snapshots }: { snapshots: SnapshotRow[] }) {
       </div>
       </div>
     </div>
+  );
+}
+
+/** 在庫の推移タブ */
+export function TrendView({ snapshots, top }: { snapshots: SnapshotRow[]; top: ReactNode }) {
+  return (
+    <main className="content">
+      {top}
+      <TrendChart snapshots={snapshots} tall />
+    </main>
   );
 }
 
@@ -151,7 +161,7 @@ function nullLast(a: ProductRow, b: ProductRow, key: ProductSortKey): number {
 }
 
 /** 店舗バッジの色：上位2店舗はオレンジ・青、それ以外は緑、「複数」は黄、「未設定」はグレー */
-function storeTone(store: string, order: string[]): string {
+export function storeTone(store: string, order: string[]): string {
   if (store === UNSET_STORE) return "unset";
   if (store === MULTI_STORE) return "multi";
   const i = order.indexOf(store);
@@ -160,65 +170,6 @@ function storeTone(store: string, order: string[]): string {
 
 export function StoreBadge({ store, order }: { store: string; order: string[] }) {
   return <span className={`store-badge store-badge--${storeTone(store, order)}`}>{store}</span>;
-}
-
-/** 店舗別の在庫金額（在庫のある商品）。押すと商品一覧をその店舗で絞り込む */
-function StoreBreakdown({
-  products,
-  order,
-  active,
-  onPick,
-}: {
-  products: ProductRow[];
-  order: string[];
-  active: string | null;
-  onPick: (store: string | null) => void;
-}) {
-  const totals = new Map<string, { v: number; q: number; n: number }>();
-  for (const row of products) {
-    if (row.qty <= 0) continue;
-    const t = totals.get(row.store) ?? { v: 0, q: 0, n: 0 };
-    t.v += row.valueJpy;
-    t.q += row.qty;
-    t.n += 1;
-    totals.set(row.store, t);
-  }
-  const all = [...totals.values()].reduce((sum, t) => sum + t.v, 0);
-  const stores = order.filter((store) => totals.has(store));
-  if (stores.length === 0) return null;
-  return (
-    <div className="panel store-breakdown">
-      <div className="store-breakdown-head">
-        <h2>🏬 店舗別の在庫金額</h2>
-        <span className="store-breakdown-note">NEの商品分類タグで判定（押すと商品一覧を絞り込み）</span>
-      </div>
-      <div className="store-cells">
-        {stores.map((store) => {
-          const t = totals.get(store)!;
-          const share = all > 0 ? t.v / all : 0;
-          const isActive = active === store;
-          return (
-            <button
-              key={store}
-              type="button"
-              className={`store-cell store-cell--${storeTone(store, order)} ${isActive ? "is-active" : ""}`}
-              onClick={() => onPick(isActive ? null : store)}
-              aria-pressed={isActive}
-            >
-              <span className="store-cell-name">{store}</span>
-              <span className="store-cell-value">{yen(t.v)}</span>
-              <span className="store-cell-bar" aria-hidden="true">
-                <span style={{ width: `${Math.round(share * 1000) / 10}%` }} />
-              </span>
-              <span className="store-cell-meta">
-                {(share * 100).toFixed(1)}%・{count(t.q)}個・{count(t.n)}商品
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 export function ProductsView({ products, top }: { products: ProductRow[]; top: ReactNode }) {
@@ -291,15 +242,6 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
     <>
       <main className="content">
         {top}
-        <StoreBreakdown
-          products={products}
-          order={storeOrder}
-          active={storeFilter}
-          onPick={(store) => {
-            setStoreFilter(store);
-            setLimit(200);
-          }}
-        />
         <div className="panel">
           <div className="panel-toolbar">
             <h2>📋 商品一覧</h2>
