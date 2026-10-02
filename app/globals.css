@@ -161,6 +161,15 @@ a { color: var(--primary-dark); }
   font-size: 13px; vertical-align: middle; white-space: nowrap;
 }
 .tbl th { position: sticky; top: 0; z-index: 1; background: var(--bg); font-size: 11px; color: var(--muted); font-weight: 600; }
+/* 列見出しで並び替え */
+.th-sort {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none;
+  font: inherit; color: inherit; cursor: pointer; white-space: nowrap;
+}
+.th-sort:hover { color: var(--text); }
+.th-sort.is-active { color: var(--primary-dark); }
+.th-sort-icon { font-size: 9px; opacity: .45; }
+.th-sort.is-active .th-sort-icon { opacity: 1; }
 .tbl tr:last-child td { border-bottom: 0; }
 .tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
 .tbl .strong { font-weight: 700; }

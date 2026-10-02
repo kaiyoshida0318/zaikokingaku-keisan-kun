@@ -50,7 +50,7 @@ export default function SyncModal(props: {
               onChange={(event) => props.onSeedOpeningChange(event.target.checked)}
               disabled={props.locked}
             />
-            便のない商品も期首在庫として登録する（初回のみ。商品DBの全商品をNEの在庫数・原価で登録）
+            便のない商品も期首在庫として登録する（商品DBの全商品と、NEで在庫がある全商品を、NEの在庫数・原価で登録）
           </label>
           {props.reconcileError && (
             <span className="form-error">

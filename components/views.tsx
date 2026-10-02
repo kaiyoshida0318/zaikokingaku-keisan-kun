@@ -108,12 +108,55 @@ export function TrendChart({ snapshots }: { snapshots: SnapshotRow[] }) {
 /* ------------------------------------------------------------------ */
 
 type ProductFilter = "stock" | "all" | "review";
-type ProductSort = "value" | "qty" | "code";
+type ProductSortKey = "code" | "name" | "qty" | "value" | "avg" | "latest" | "lots" | "status";
+type SortDir = "asc" | "desc";
+
+// 列の見出しをクリックして並び替え。数値の列は最初は大きい順、文字の列は昇順から。
+const productColumns: { key: ProductSortKey; label: string; num?: boolean; firstDir: SortDir }[] = [
+  { key: "code", label: "商品コード", firstDir: "asc" },
+  { key: "name", label: "商品名", firstDir: "asc" },
+  { key: "qty", label: "在庫数", num: true, firstDir: "desc" },
+  { key: "value", label: "在庫金額", num: true, firstDir: "desc" },
+  { key: "avg", label: "平均原価", num: true, firstDir: "desc" },
+  { key: "latest", label: "最新の便の原価", num: true, firstDir: "desc" },
+  { key: "lots", label: "便", num: true, firstDir: "desc" },
+  { key: "status", label: "状態", firstDir: "desc" },
+];
+
+// 文字の中の数字は数の大きさで並べる（商品2 → 商品10）
+const textCollator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
+
+function compareProducts(a: ProductRow, b: ProductRow, key: ProductSortKey): number {
+  // 原価が空（null）の行は、昇順・降順どちらでも最後に回す（呼び出し側で処理）
+  switch (key) {
+    case "code": return textCollator.compare(a.productCodeLc, b.productCodeLc);
+    case "name": return textCollator.compare(a.productName, b.productName);
+    case "qty": return a.qty - b.qty;
+    case "value": return a.valueJpy - b.valueJpy;
+    case "avg": return (a.avgUnitCost ?? 0) - (b.avgUnitCost ?? 0);
+    case "latest": return (a.latestUnitCost ?? 0) - (b.latestUnitCost ?? 0);
+    case "lots": return a.openLots - b.openLots;
+    case "status": return Number(a.needsReview) - Number(b.needsReview);
+  }
+}
+
+function nullLast(a: ProductRow, b: ProductRow, key: ProductSortKey): number {
+  const pick = (row: ProductRow) => (key === "avg" ? row.avgUnitCost : key === "latest" ? row.latestUnitCost : 0);
+  return Number(pick(a) === null) - Number(pick(b) === null);
+}
 
 export function ProductsView({ products, top }: { products: ProductRow[]; top: ReactNode }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProductFilter>("stock");
-  const [sort, setSort] = useState<ProductSort>("value");
+  const [sort, setSort] = useState<{ key: ProductSortKey; dir: SortDir }>({ key: "value", dir: "desc" });
+
+  function toggleSort(key: ProductSortKey) {
+    setSort((current) =>
+      current.key === key
+        ? { key, dir: current.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: productColumns.find((col) => col.key === key)?.firstDir ?? "asc" },
+    );
+  }
   const [expanded, setExpanded] = useState<string | null>(null);
   const [limit, setLimit] = useState(200);
 
@@ -125,11 +168,13 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
       if (!q) return true;
       return row.productCodeLc.includes(q) || row.productName.toLowerCase().includes(q);
     });
-    return filtered.sort((a, b) => {
-      if (sort === "qty") return b.qty - a.qty || a.productCodeLc.localeCompare(b.productCodeLc);
-      if (sort === "code") return a.productCodeLc.localeCompare(b.productCodeLc);
-      return b.valueJpy - a.valueJpy || a.productCodeLc.localeCompare(b.productCodeLc);
-    });
+    const sign = sort.dir === "asc" ? 1 : -1;
+    return filtered.sort(
+      (a, b) =>
+        nullLast(a, b, sort.key) ||
+        sign * compareProducts(a, b, sort.key) ||
+        a.productCodeLc.localeCompare(b.productCodeLc),
+    );
   }, [products, query, filter, sort]);
 
   const totalValue = rows.reduce((sum, row) => sum + row.valueJpy, 0);
@@ -202,14 +247,6 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
                 </button>
               ))}
             </div>
-            <label className="toolbar-select">
-              <span>並び替え</span>
-              <select value={sort} onChange={(event) => setSort(event.target.value as ProductSort)}>
-                <option value="value">在庫金額が大きい</option>
-                <option value="qty">在庫数が多い</option>
-                <option value="code">商品コード 昇順</option>
-              </select>
-            </label>
             <div className="toolbar-spacer" />
             <span className="result-count">
               {count(rows.length)}商品・{count(totalQty)}個・{yen(totalValue)}
@@ -230,14 +267,28 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
               <table className="tbl">
                 <thead>
                   <tr>
-                    <th>商品コード</th>
-                    <th>商品名</th>
-                    <th className="num">在庫数</th>
-                    <th className="num">在庫金額</th>
-                    <th className="num">平均原価</th>
-                    <th className="num">最新の便の原価</th>
-                    <th className="num">便</th>
-                    <th>状態</th>
+                    {productColumns.map((col) => {
+                      const active = sort.key === col.key;
+                      return (
+                        <th
+                          key={col.key}
+                          className={col.num ? "num" : undefined}
+                          aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                        >
+                          <button
+                            type="button"
+                            className={`th-sort ${active ? "is-active" : ""}`}
+                            onClick={() => toggleSort(col.key)}
+                            title={`${col.label}で並び替え`}
+                          >
+                            {col.label}
+                            <span className="th-sort-icon" aria-hidden="true">
+                              {active ? (sort.dir === "asc" ? "▲" : "▼") : "↕"}
+                            </span>
+                          </button>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
