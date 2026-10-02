@@ -10,6 +10,7 @@ import {
   runReconcile,
   type LogRow,
   type ProductRow,
+  type ReconcileProgress,
   type ReconcileResult,
   type ShipmentRow,
   type SnapshotRow,
@@ -40,6 +41,7 @@ export default function ZaikoApp() {
   const [seedOpening, setSeedOpening] = useState(false);
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
+  const [reconcileProgress, setReconcileProgress] = useState<ReconcileProgress | null>(null);
   const [reconcileError, setReconcileError] = useState<string | null>(null);
   const [reauthUrl, setReauthUrl] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -117,10 +119,11 @@ export default function ZaikoApp() {
       if (!ok) return;
     }
     setReconciling(true);
+    setReconcileProgress(null);
     setReconcileError(null);
     setReauthUrl(null);
     try {
-      const result = await runReconcile(accessToken, seedOpening);
+      const result = await runReconcile(accessToken, seedOpening, setReconcileProgress);
       setReconcileResult(result);
       setSeedOpening(false);
       await loadAll();
@@ -129,6 +132,7 @@ export default function ZaikoApp() {
       setReconcileError(err instanceof Error ? err.message : "照合に失敗しました。");
     } finally {
       setReconciling(false);
+      setReconcileProgress(null);
     }
   }
 
@@ -308,6 +312,7 @@ export default function ZaikoApp() {
           seedOpening={seedOpening}
           onSeedOpeningChange={setSeedOpening}
           reconciling={reconciling}
+          reconcileProgress={reconcileProgress}
           onReconcile={() => void handleReconcile()}
           reconcileResult={reconcileResult}
           reconcileError={reconcileError}

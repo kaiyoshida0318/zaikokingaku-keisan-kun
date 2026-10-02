@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReconcileResult } from "@/lib/data";
+import type { ReconcileProgress, ReconcileResult } from "@/lib/data";
 import { count, dateTime, yen } from "@/lib/format";
 import Modal from "./Modal";
 
@@ -18,6 +18,7 @@ export default function SyncModal(props: {
   seedOpening: boolean;
   onSeedOpeningChange: (value: boolean) => void;
   reconciling: boolean;
+  reconcileProgress: ReconcileProgress | null;
   onReconcile: () => void;
   reconcileResult: ReconcileResult | null;
   reconcileError: string | null;
@@ -78,7 +79,11 @@ export default function SyncModal(props: {
           onClick={props.onReconcile}
           disabled={props.locked || props.reconciling || !props.workerConfigured}
         >
-          {props.reconciling ? "照合中…" : "照合する"}
+          {props.reconciling
+            ? props.reconcileProgress && props.reconcileProgress.total > 0
+              ? `照合中… ${count(props.reconcileProgress.done)} / ${count(props.reconcileProgress.total)}件`
+              : "照合中…"
+            : "照合する"}
         </button>
       </div>
 

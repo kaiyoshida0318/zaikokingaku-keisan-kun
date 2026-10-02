@@ -257,8 +257,13 @@ export type ReconcileResult = {
   adjustedProducts: number;
   openingProducts: number;
   snapshot: { total_value_jpy?: number; snapshot_date?: string } | null;
+  offset?: number;
+  nextOffset?: number | null;
+  totalCodes?: number;
   finishedAt: string;
 };
+
+export type ReconcileProgress = { done: number; total: number };
 
 export class NeReauthError extends Error {
   constructor(message: string, public reauthUrl: string) {
@@ -266,17 +271,26 @@ export class NeReauthError extends Error {
   }
 }
 
-export async function runReconcile(accessToken: string, seedOpening: boolean): Promise<ReconcileResult> {
+async function runReconcileChunk(accessToken: string, seedOpening: boolean, offset: number): Promise<ReconcileResult> {
   if (!NE_SYNC_WORKER_URL) throw new Error("NEXT_PUBLIC_NE_SYNC_WORKER_URL が未設定です。");
-  const response = await fetch(`${NE_SYNC_WORKER_URL}/api/cost/reconcile`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ seed_opening: seedOpening }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${NE_SYNC_WORKER_URL}/api/cost/reconcile`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ seed_opening: seedOpening, offset }),
+    });
+  } catch (err) {
+    // ブラウザの「Failed to fetch」はワーカーに届かない／CORSヘッダーのない応答（ワーカー内の未処理エラー等）のとき
+    throw new Error(
+      `ne-sync-worker から応答を受け取れませんでした（${err instanceof Error ? err.message : String(err)}）。` +
+        `ワーカーのURL（${NE_SYNC_WORKER_URL}）とデプロイ状態を確認してください。ワーカー側でエラーが起きている場合は \`npx wrangler tail\` で内容が見られます。`,
+    );
+  }
   const text = await response.text();
   let payload: Record<string, unknown> = {};
   try {
@@ -289,7 +303,42 @@ export async function runReconcile(accessToken: string, seedOpening: boolean): P
     if (payload.code === "NE_TOKEN_EXPIRED" && typeof payload.reauthUrl === "string") {
       throw new NeReauthError(message, payload.reauthUrl);
     }
-    throw new Error(`NE照合に失敗しました（${response.status}）: ${message}`);
+    throw new Error(`NE照合に失敗しました（${offset > 0 ? `${offset}件目から・` : ""}${response.status}）: ${message}`);
   }
   return payload as unknown as ReconcileResult;
+}
+
+/**
+ * NEとの照合。ワーカーは1回の呼び出しで1000件ずつ照合し、続きの位置（nextOffset）を返すので、
+ * 最後まで繰り返して結果を合算する（Cloudflare Workers のサブリクエスト上限対策）。
+ * 途中で失敗しても、それまでの分は照合済み。もう一度押せば最初から照合し直す（照合は何度やっても同じ結果になる）。
+ */
+export async function runReconcile(
+  accessToken: string,
+  seedOpening: boolean,
+  onProgress?: (progress: ReconcileProgress) => void,
+): Promise<ReconcileResult> {
+  let offset: number | null = 0;
+  let total: ReconcileResult | null = null;
+  for (let round = 0; offset !== null; round += 1) {
+    if (round > 200) throw new Error("照合が終わりませんでした（200回を超えました）。");
+    const part: ReconcileResult = await runReconcileChunk(accessToken, seedOpening, offset);
+    total = total
+      ? {
+          ...part,
+          checkedCount: total.checkedCount + part.checkedCount,
+          notFoundCount: total.notFoundCount + part.notFoundCount,
+          notFoundCodes: [...total.notFoundCodes, ...part.notFoundCodes].slice(0, 100),
+          consumedTotal: total.consumedTotal + part.consumedTotal,
+          consumedProducts: total.consumedProducts + part.consumedProducts,
+          adjustedProducts: total.adjustedProducts + part.adjustedProducts,
+          openingProducts: total.openingProducts + part.openingProducts,
+          snapshot: part.snapshot ?? total.snapshot,
+        }
+      : part;
+    // 古いワーカー（nextOffsetを返さない）なら1回で終わり
+    offset = typeof part.nextOffset === "number" ? part.nextOffset : null;
+    onProgress?.({ done: total.checkedCount, total: part.totalCodes ?? total.checkedCount });
+  }
+  return total as ReconcileResult;
 }
