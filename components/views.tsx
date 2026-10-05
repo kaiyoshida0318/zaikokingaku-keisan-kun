@@ -626,8 +626,8 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
         <thead>
           <tr>
             <th rowSpan={2}>出荷状況</th>
-            <th rowSpan={2} className="num">入庫数</th>
             <th rowSpan={2} className="num">残り</th>
+            <th rowSpan={2} className="num">入庫数</th>
             <th rowSpan={2} className="num">残り金額</th>
             <th colSpan={5} className="cost-group-head">1単位原価 ＝ 商品 ＋ オプション ＋ 国内運賃 ＋ 国際送料</th>
             <th rowSpan={2}>種類</th>
@@ -657,13 +657,13 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
                     <span className="consume consume--next">▶ 出荷中</span>
                   ) : null}
                 </td>
-                <td className="num">{count(lot.qtyIn)}</td>
                 <td className="num strong">
                   <span className="meter" aria-hidden="true" title={`入庫数の${Math.round(ratio * 100)}%が残っています`}>
                     <span style={{ width: `${Math.round(ratio * 100)}%` }} />
                   </span>
                   {count(lot.qtyRemaining)}
                 </td>
+                <td className="num">{count(lot.qtyIn)}</td>
                 <td className="num">{yen(lot.qtyRemaining * (lot.unitCost ?? 0))}</td>
                 <td className="num strong cost-col cost-col--first">{unitYen(lot.unitCost)}</td>
                 {hasBreakdown(lot) ? (
