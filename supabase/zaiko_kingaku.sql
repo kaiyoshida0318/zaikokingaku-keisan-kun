@@ -60,7 +60,7 @@ grant execute on function public.cost_lot_product_codes() to authenticated, serv
 -- 今日（JST）のスナップショットを保存する関数 cost_take_snapshot は、店舗別の内訳と一緒にこのファイルの最後で定義しています。
 
 -- =====================================================================
--- 店舗（ゆかい屋 / KAIRY など）
+-- 店舗（ゆかい屋 / KAIRY(Yahoo) など）
 --   NEの商品分類タグ（goods_tag）を照合のたびに cost_product_tags に保存し、
 --   cost_store_rules の「タグ → 店舗」で商品ごとの店舗を決める。
 --   ルールは Supabase の Table Editor で cost_store_rules を編集すれば変えられる（次の画面更新から反映）。
@@ -76,8 +76,8 @@ create table if not exists public.cost_store_rules (
 
 insert into public.cost_store_rules (tag, store, sort_order) values
   ('自社出荷商品',       'ゆかい屋', 1),
-  ('STOCKCREW連携対象', 'KAIRY',    2),
-  ('SCハード資材発送',   'KAIRY',    2)
+  ('STOCKCREW連携対象', 'KAIRY(Yahoo)', 2),
+  ('SCハード資材発送',   'KAIRY(Yahoo)', 2)
 on conflict (tag) do nothing;
 
 -- 商品ごとのNE商品分類タグ（照合のたびに上書き）
@@ -145,7 +145,7 @@ group by c.product_code_lc, t.goods_tag;
 grant select on public.cost_product_store to authenticated, service_role;
 
 -- スナップショットにも店舗別の内訳を残す
--- by_store = {"ゆかい屋": {"v": 金額, "q": 個数, "n": 商品数}, "KAIRY": {...}, "未設定": {...}}
+-- by_store = {"ゆかい屋": {"v": 金額, "q": 個数, "n": 商品数}, "KAIRY(Yahoo)": {...}, "未設定": {...}}
 alter table public.cost_inventory_snapshots
   add column if not exists by_store jsonb not null default '{}'::jsonb;
 

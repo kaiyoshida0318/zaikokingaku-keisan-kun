@@ -66,9 +66,10 @@ npm run dev
 | 商品分類タグ | 店舗 |
 |---|---|
 | 自社出荷商品 | ゆかい屋 |
-| STOCKCREW連携対象 | KAIRY |
-| SCハード資材発送 | KAIRY |
+| STOCKCREW連携対象 | KAIRY(Yahoo) |
+| SCハード資材発送 | KAIRY(Yahoo) |
 
 - ルールを変えたいときは、Supabase の Table Editor で `cost_store_rules` を編集してください（行を足す・店舗名を変えるなど）。画面は次に更新したときから、日ごとの記録は次の照合から反映されます。
 - タグ名が商品分類タグの中に含まれていれば当たりとみなします。違う店舗のタグが両方付いている商品は「複数」、どれにも当たらない商品とタグのない商品は「未設定」になります。
 - 日ごとの記録（`cost_inventory_snapshots.by_store`）にも店舗別の金額・個数・商品数を保存します。店舗に対応する前の記録には内訳がありません。
+- 店舗名を「KAIRY」から「KAIRY(Yahoo)」に変えたときは `supabase/rename_store_kairy_yahoo.sql` を1回実行しました（ルールと過去の記録をまとめて置き換え）。

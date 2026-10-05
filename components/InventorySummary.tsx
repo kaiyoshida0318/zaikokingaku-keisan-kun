@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { sortStores, UNSET_STORE, type LogRow, type ProductRow, type SnapshotRow } from "@/lib/data";
-import { count, dateTime, yen } from "@/lib/format";
+import { MULTI_STORE, sortStores, UNSET_STORE, type LogRow, type ProductRow, type SnapshotRow } from "@/lib/data";
+import { count, dateTime, unitYen, yen } from "@/lib/format";
 import { storeTone } from "./views";
 
-/** 画面上部の在庫金額カード（店舗別の内訳・いつ時点の金額か）と、在庫数・商品数のカード */
+type StoreTotal = { store: string; v: number; q: number; n: number };
+
+/** 画面上部の在庫金額カード（店舗別の内訳・いつ時点の金額か）と、商品コード数・総在庫数・平均原価のカード */
 export default function InventorySummary({
   products,
   snapshots,
@@ -57,6 +59,8 @@ export default function InventorySummary({
     return null;
   }, [logs, snapshots]);
 
+  // 右のカードの内訳は実際の店舗だけ（「複数」「未設定」は出さない）
+  const namedStores = totals.stores.filter((t) => t.store !== UNSET_STORE && t.store !== MULTI_STORE);
   const showStores = totals.stores.length > 1 || (totals.stores.length === 1 && totals.stores[0].store !== UNSET_STORE);
 
   return (
@@ -113,22 +117,39 @@ export default function InventorySummary({
           </>
         )}
       </section>
-      <div className="metric-side">
-        <div className="metric-card">
-          <div className="metric-icon">📦</div>
-          <div>
-            <div className="metric-value">{count(totals.qty)}</div>
-            <div className="metric-label">在庫数</div>
+      <section className="metric-card metric-side" aria-label="商品コード数・総在庫数・平均原価">
+        {(
+          [
+            ["🏷", "商品コード数", count(totals.products), (t: StoreTotal) => count(t.n)],
+            ["📦", "総在庫数", count(totals.qty), (t: StoreTotal) => count(t.q)],
+            [
+              "💹",
+              "平均原価",
+              unitYen(totals.qty > 0 ? totals.value / totals.qty : null),
+              (t: StoreTotal) => unitYen(t.q > 0 ? t.v / t.q : null),
+            ],
+          ] as const
+        ).map(([icon, label, value, pick]) => (
+          <div key={label} className="side-row">
+            <div className="side-label">
+              <span aria-hidden="true">{icon}</span>
+              {label}
+            </div>
+            <div className="side-value">{value}</div>
+            {namedStores.length > 0 && (
+              <div className="side-stores">
+                {namedStores.map((t) => (
+                  <span key={t.store} className="side-store">
+                    <span className={`store-dot tone-${storeTone(t.store, totals.colorOrder)}`} aria-hidden="true" />
+                    {t.store}
+                    <b>{pick(t)}</b>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-        <div className="metric-card">
-          <div className="metric-icon">🏷</div>
-          <div>
-            <div className="metric-value">{count(totals.products)}</div>
-            <div className="metric-label">在庫のある商品</div>
-          </div>
-        </div>
-      </div>
+        ))}
+      </section>
     </div>
   );
 }
