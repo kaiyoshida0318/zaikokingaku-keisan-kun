@@ -20,6 +20,7 @@ import {
   dateOnly,
   dateTime,
   downloadBlob,
+  rakumartDeliveryUrl,
   shipmentLabel,
   todayJst,
   unitCsv,
@@ -547,7 +548,7 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
 }
 
 const lotTypeLabel: Record<LotRow["lotType"], string> = {
-  shipment: "便",
+  shipment: "入庫",
   // このアプリを使い始める前からあった在庫（NEの在庫数・原価で登録したもの）
   opening: "導入前在庫",
   adjust: "在庫増の調整",
@@ -684,7 +685,7 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
                   {lotTypeLabel[lot.lotType]}
                   {lot.needsReview && <span className="status warn">要確認</span>}
                 </td>
-                <td>{lot.lotType === "shipment" ? shipmentLabel(lot.shipmentId) : "—"}</td>
+                <td>{lot.lotType === "shipment" ? <ShipmentCell id={lot.shipmentId} /> : "—"}</td>
                 <td>
                   {lot.lotType === "opening" ? (
                     <span title="このアプリを使い始める前からあった在庫です">
@@ -709,6 +710,34 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** 配送依頼書番号（押すとラクマートの配送詳細を新しいタブで開く） */
+function ShipmentLink({ id }: { id: string | null }) {
+  const url = rakumartDeliveryUrl(id);
+  if (!id || !url) return <>—</>;
+  return (
+    <a
+      className="shipment-link"
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      title="ラクマートの配送詳細を開く"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {id}
+    </a>
+  );
+}
+
+/** 「09/18 08:54便」＋その下に配送依頼書番号のリンク */
+function ShipmentCell({ id }: { id: string | null }) {
+  return (
+    <span className="shipment-cell">
+      {shipmentLabel(id)}
+      {id && <ShipmentLink id={id} />}
+    </span>
   );
 }
 
@@ -767,7 +796,7 @@ export function ShipmentsView({ shipments, top }: { shipments: ShipmentRow[]; to
               return (
                 <tr key={row.shipmentId}>
                   <td className="code">{shipmentLabel(row.shipmentId)}</td>
-                  <td className="muted">{row.shipmentId}</td>
+                  <td className="muted"><ShipmentLink id={row.shipmentId} /></td>
                   <td>{dateOnly(row.processedAt)}</td>
                   <td className="num">{row.rate}</td>
                   <td className="num">{yen(row.totalJpy)}</td>

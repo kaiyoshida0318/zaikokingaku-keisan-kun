@@ -100,6 +100,12 @@ export function shipmentLabel(id: string | null | undefined): string {
   return m ? `${m[2]}/${m[3]} ${m[4]}:${m[5]}便` : id;
 }
 
+/** 配送依頼書番号 → ラクマートの配送詳細ページ */
+export function rakumartDeliveryUrl(id: string | null | undefined): string | null {
+  if (!id) return null;
+  return `https://www.rakumart.com/deliveryDetails?pOrder_sn=${encodeURIComponent(id)}`;
+}
+
 export function csvBlob(headers: string[], rows: Array<Array<string | number | null | undefined>>): Blob {
   const escape = (value: string | number | null | undefined) => {
     const text = value === null || value === undefined ? "" : String(value);

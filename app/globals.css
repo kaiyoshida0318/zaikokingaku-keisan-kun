@@ -279,6 +279,10 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 .detail-head b.next-word { color: var(--primary-dark); }
 .detail-head b { color: var(--text); }
 .lot-sub { display: block; font-size: 10px; color: var(--light); }
+.shipment-cell { display: inline-flex; flex-direction: column; line-height: 1.4; }
+.shipment-link { font-size: 11px; color: var(--blue); text-decoration: none; font-variant-numeric: tabular-nums; }
+.shipment-link:hover { text-decoration: underline; }
+.shipment-cell .shipment-link { font-size: 10px; }
 /* 1単位原価 ＝ 内訳の合計、をまとまりで見せる */
 .tbl--inner th.cost-group-head {
   text-align: center; background: #fff1eb; color: #b4380e; border-bottom: 1px solid #fbd5c4;
