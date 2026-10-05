@@ -40,6 +40,8 @@ export type LotRow = {
   note: string | null;
   /** 行を作った日時（導入前在庫では、NEから在庫数・原価を取ってきた日） */
   createdAt: string;
+  /** 導入前在庫のメモ：アプリ導入前のNEの原価（バックアップから。計算には使わない） */
+  preAppCost: number | null;
 };
 
 export type ShipmentRow = {
@@ -181,6 +183,7 @@ export async function fetchLots(productCodeLc: string): Promise<LotRow[]> {
     needsReview: Boolean(row.needs_review),
     note: (row.note as string | null) ?? null,
     createdAt: String(row.created_at ?? ""),
+    preAppCost: numOrNull(row.pre_app_cost),
   }));
 }
 

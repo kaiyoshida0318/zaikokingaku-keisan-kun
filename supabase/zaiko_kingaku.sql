@@ -10,6 +10,9 @@ alter table public.cost_lots
 create index if not exists cost_lots_product_code_lc_idx
   on public.cost_lots (product_code_lc, received_at, id);
 
+-- 導入前在庫のメモ用：アプリ導入前のNEの原価（バックアップから import_pre_app_cost.sql で入れる。計算には使わない）
+alter table public.cost_lots add column if not exists pre_app_cost numeric(14, 4);
+
 -- 日次スナップショット（月末の棚卸金額の控え）
 create table if not exists public.cost_inventory_snapshots (
   snapshot_date       date primary key,               -- JSTの日付。同じ日は上書き

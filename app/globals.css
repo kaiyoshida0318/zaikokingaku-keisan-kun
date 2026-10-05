@@ -244,7 +244,7 @@ a { color: var(--primary-dark); }
 .tbl--inner th { position: static; padding: 9px 12px; }
 .tbl--inner td { padding: 9px 12px; }
 .tbl--inner tr.is-used td { color: var(--light); }
-/* 出荷順：次に減る在庫を目立たせる */
+/* 出荷順：出荷中の在庫を目立たせる */
 .tbl--inner tr.is-next td { background: #fff6f1; }
 .tbl--inner tr.is-next td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
 .consume { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 12px; font-size: 11px; font-weight: 700; white-space: nowrap; }
@@ -254,6 +254,11 @@ a { color: var(--primary-dark); }
 .detail-head b.next-word { color: var(--primary-dark); }
 .detail-head b { color: var(--text); }
 .lot-sub { display: block; font-size: 10px; color: var(--light); }
+.pre-app-cost {
+  display: table; margin-top: 4px; padding: 1px 8px; border-radius: 10px;
+  background: var(--bg); border: 1px dashed var(--border); color: var(--muted); font-size: 11px; white-space: nowrap;
+}
+.note > .pre-app-cost:first-child { margin-top: 0; }
 .more { display: block; width: 100%; padding: 12px; border: 0; border-top: 1px solid var(--border-light); background: #faf9f7; color: var(--primary-dark); font-weight: 600; }
 
 .status { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap; }

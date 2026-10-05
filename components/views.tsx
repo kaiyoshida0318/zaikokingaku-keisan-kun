@@ -420,7 +420,7 @@ function LotDetail({ productCodeLc }: { productCodeLc: string }) {
 
 /**
  * 出荷で減る順番（SQL の cost__reconcile と同じ）：導入前在庫 → 登録日の古い順 → id の小さい順。
- * 残りのある在庫だけに 1, 2, 3… を振る。1 が「次に減る」在庫。
+ * 残りのある在庫だけに 1, 2, 3… を振る。1 が「出荷中」の在庫。
  */
 function consumeOrder(lots: LotRow[]): Map<number, number> {
   const live = lots
@@ -454,10 +454,10 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
     <div className="detail">
       <div className="detail-head">
         <span>
-          新しい順。出荷は<b className="next-word">次に減る</b>の在庫から減り、なくなると1つ上の在庫に移ります。
+          新しい順。出荷は<b className="next-word">出荷中</b>の在庫から減り、なくなると1つ上の在庫に移ります。
           {next && (
             <>
-              {" "}いま減っているのは<b>{lotName(next)}</b>（残り{count(next.qtyRemaining)}個・1個 {unitYen(next.unitCost)}）。
+              {" "}いま出荷中なのは<b>{lotName(next)}</b>（残り{count(next.qtyRemaining)}個・1個 {unitYen(next.unitCost)}）。
             </>
           )}
         </span>
@@ -495,7 +495,7 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
                   {rank === undefined ? (
                     <span className="consume consume--used">使い切り</span>
                   ) : rank === 1 ? (
-                    <span className="consume consume--next">▶ 次に減る</span>
+                    <span className="consume consume--next">▶ 出荷中</span>
                   ) : (
                     <span className="consume consume--wait">{rank}番目</span>
                   )}
@@ -528,7 +528,14 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
                 <td className="num">{unitYen(lot.unitDomestic)}</td>
                 <td className="num">{unitYen(lot.unitIntl === null && lot.unitOther === null ? null : (lot.unitIntl ?? 0) + (lot.unitOther ?? 0))}</td>
                 <td className="num">{yen(lot.qtyRemaining * (lot.unitCost ?? 0))}</td>
-                <td className="note">{lot.note ?? ""}</td>
+                <td className="note">
+                  {lot.note ?? ""}
+                  {lot.preAppCost !== null && (
+                    <span className="pre-app-cost" title="アプリ導入前のNEの原価（バックアップから）。在庫金額の計算には使っていません">
+                      導入前のNE原価 {unitYen(lot.preAppCost)}
+                    </span>
+                  )}
+                </td>
               </tr>
             );
           })}
