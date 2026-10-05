@@ -402,7 +402,6 @@ const lotTypeLabel: Record<LotRow["lotType"], string> = {
 function LotDetail({ productCodeLc }: { productCodeLc: string }) {
   const [lots, setLots] = useState<LotRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showUsed, setShowUsed] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -416,21 +415,52 @@ function LotDetail({ productCodeLc }: { productCodeLc: string }) {
 
   if (error) return <p className="detail-error">{error}</p>;
   if (!lots) return <p className="detail-loading">便を読み込み中…</p>;
+  return <LotTable lots={lots} />;
+}
 
-  // 新しい順。導入前在庫はいちばん古い扱い（出荷で最初に減る）なので、登録日に関係なく最後に並べる
+/**
+ * 出荷で減る順番（SQL の cost__reconcile と同じ）：導入前在庫 → 登録日の古い順 → id の小さい順。
+ * 残りのある在庫だけに 1, 2, 3… を振る。1 が「次に減る」在庫。
+ */
+function consumeOrder(lots: LotRow[]): Map<number, number> {
+  const live = lots
+    .filter((lot) => lot.qtyRemaining > 0)
+    .sort(
+      (a, b) =>
+        Number(a.lotType !== "opening") - Number(b.lotType !== "opening") ||
+        a.receivedAt.localeCompare(b.receivedAt) ||
+        a.id - b.id,
+    );
+  return new Map(live.map((lot, i) => [lot.id, i + 1]));
+}
+
+/** 商品を開いたときの在庫（便ごと）の一覧 */
+export function LotTable({ lots }: { lots: LotRow[] }) {
+  const [showUsed, setShowUsed] = useState(false);
+
+  // 表示は新しい順。導入前在庫はいちばん古い扱い（出荷で最初に減る）なので、登録日に関係なく最後に並べる
   const ordered = [...lots].sort(
     (a, b) =>
       Number(a.lotType === "opening") - Number(b.lotType === "opening") ||
       b.receivedAt.localeCompare(a.receivedAt) ||
       b.id - a.id,
   );
+  const order = consumeOrder(lots);
   const visible = showUsed ? ordered : ordered.filter((lot) => lot.qtyRemaining > 0);
-  const usedCount = lots.length - lots.filter((lot) => lot.qtyRemaining > 0).length;
+  const usedCount = lots.length - order.size;
+  const next = ordered.find((lot) => order.get(lot.id) === 1) ?? null;
 
   return (
     <div className="detail">
       <div className="detail-head">
-        <span>新しい順。出荷はいちばん下（導入前在庫・古い便）から消費されます。</span>
+        <span>
+          新しい順。出荷は<b className="next-word">次に減る</b>の在庫から減り、なくなると1つ上の在庫に移ります。
+          {next && (
+            <>
+              {" "}いま減っているのは<b>{lotName(next)}</b>（残り{count(next.qtyRemaining)}個・1個 {unitYen(next.unitCost)}）。
+            </>
+          )}
+        </span>
         {usedCount > 0 && (
           <button type="button" className="text-btn" onClick={() => setShowUsed((v) => !v)}>
             {showUsed ? "使い切った便を隠す" : `使い切った便も表示（${usedCount}）`}
@@ -440,6 +470,7 @@ function LotDetail({ productCodeLc }: { productCodeLc: string }) {
       <table className="tbl tbl--inner">
         <thead>
           <tr>
+            <th>出荷順</th>
             <th>種類</th>
             <th>便</th>
             <th>登録日</th>
@@ -455,38 +486,61 @@ function LotDetail({ productCodeLc }: { productCodeLc: string }) {
           </tr>
         </thead>
         <tbody>
-          {visible.map((lot) => (
-            <tr key={lot.id} className={lot.qtyRemaining === 0 ? "is-used" : ""}>
-              <td>
-                {lotTypeLabel[lot.lotType]}
-                {lot.needsReview && <span className="status warn">要確認</span>}
-              </td>
-              <td>{lot.lotType === "shipment" ? shipmentLabel(lot.shipmentId) : "—"}</td>
-              <td>
-                {lot.lotType === "opening" ? (
-                  <span title="このアプリを使い始める前からあった在庫です">
-                    導入前
-                    {lot.createdAt && <small className="lot-sub">{dateOnly(lot.createdAt)} にNEから取得</small>}
+          {visible.map((lot) => {
+            const rank = order.get(lot.id);
+            const ratio = lot.qtyIn > 0 ? lot.qtyRemaining / lot.qtyIn : 0;
+            return (
+              <tr key={lot.id} className={rank === undefined ? "is-used" : rank === 1 ? "is-next" : ""}>
+                <td>
+                  {rank === undefined ? (
+                    <span className="consume consume--used">使い切り</span>
+                  ) : rank === 1 ? (
+                    <span className="consume consume--next">▶ 次に減る</span>
+                  ) : (
+                    <span className="consume consume--wait">{rank}番目</span>
+                  )}
+                </td>
+                <td>
+                  {lotTypeLabel[lot.lotType]}
+                  {lot.needsReview && <span className="status warn">要確認</span>}
+                </td>
+                <td>{lot.lotType === "shipment" ? shipmentLabel(lot.shipmentId) : "—"}</td>
+                <td>
+                  {lot.lotType === "opening" ? (
+                    <span title="このアプリを使い始める前からあった在庫です">
+                      導入前
+                      {lot.createdAt && <small className="lot-sub">{dateOnly(lot.createdAt)} にNEから取得</small>}
+                    </span>
+                  ) : (
+                    dateOnly(lot.receivedAt)
+                  )}
+                </td>
+                <td className="num">{count(lot.qtyIn)}</td>
+                <td className="num strong">
+                  <span className="meter" aria-hidden="true" title={`入庫数の${Math.round(ratio * 100)}%が残っています`}>
+                    <span style={{ width: `${Math.round(ratio * 100)}%` }} />
                   </span>
-                ) : (
-                  dateOnly(lot.receivedAt)
-                )}
-              </td>
-              <td className="num">{count(lot.qtyIn)}</td>
-              <td className="num strong">{count(lot.qtyRemaining)}</td>
-              <td className="num strong">{unitYen(lot.unitCost)}</td>
-              <td className="num">{unitYen(lot.unitGoods)}</td>
-              <td className="num">{unitYen(lot.unitOption)}</td>
-              <td className="num">{unitYen(lot.unitDomestic)}</td>
-              <td className="num">{unitYen(lot.unitIntl === null && lot.unitOther === null ? null : (lot.unitIntl ?? 0) + (lot.unitOther ?? 0))}</td>
-              <td className="num">{yen(lot.qtyRemaining * (lot.unitCost ?? 0))}</td>
-              <td className="note">{lot.note ?? ""}</td>
-            </tr>
-          ))}
+                  {count(lot.qtyRemaining)}
+                </td>
+                <td className="num strong">{unitYen(lot.unitCost)}</td>
+                <td className="num">{unitYen(lot.unitGoods)}</td>
+                <td className="num">{unitYen(lot.unitOption)}</td>
+                <td className="num">{unitYen(lot.unitDomestic)}</td>
+                <td className="num">{unitYen(lot.unitIntl === null && lot.unitOther === null ? null : (lot.unitIntl ?? 0) + (lot.unitOther ?? 0))}</td>
+                <td className="num">{yen(lot.qtyRemaining * (lot.unitCost ?? 0))}</td>
+                <td className="note">{lot.note ?? ""}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
+}
+
+/** 「09/15 21:47便」「導入前在庫」など、在庫の呼び名 */
+function lotName(lot: LotRow): string {
+  return lot.lotType === "shipment" ? shipmentLabel(lot.shipmentId) : lotTypeLabel[lot.lotType];
 }
 
 /* ------------------------------------------------------------------ */
