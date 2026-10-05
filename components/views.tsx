@@ -310,7 +310,7 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
               <div className="empty-title">{products.length === 0 ? "まだ便ごとの在庫がありません" : "条件に合う商品がありません"}</div>
               {products.length === 0 && (
                 <div className="empty-desc">
-                  入庫一括でNE更新すると登録されます。今ある在庫をまとめて登録するには「🔄 照合と更新」で「便のない商品も期首在庫として登録」を選んで照合してください。
+                  入庫一括でNE更新すると登録されます。今ある在庫をまとめて登録するには「🔄 照合と更新」で「便のない商品も導入前在庫として登録」を選んで照合してください。
                 </div>
               )}
             </div>
@@ -394,7 +394,8 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
 
 const lotTypeLabel: Record<LotRow["lotType"], string> = {
   shipment: "便",
-  opening: "期首在庫",
+  // このアプリを使い始める前からあった在庫（NEの在庫数・原価で登録したもの）
+  opening: "導入前在庫",
   adjust: "在庫増の調整",
 };
 
@@ -416,13 +417,20 @@ function LotDetail({ productCodeLc }: { productCodeLc: string }) {
   if (error) return <p className="detail-error">{error}</p>;
   if (!lots) return <p className="detail-loading">便を読み込み中…</p>;
 
-  const visible = showUsed ? lots : lots.filter((lot) => lot.qtyRemaining > 0);
+  // 新しい順。導入前在庫はいちばん古い扱い（出荷で最初に減る）なので、登録日に関係なく最後に並べる
+  const ordered = [...lots].sort(
+    (a, b) =>
+      Number(a.lotType === "opening") - Number(b.lotType === "opening") ||
+      b.receivedAt.localeCompare(a.receivedAt) ||
+      b.id - a.id,
+  );
+  const visible = showUsed ? ordered : ordered.filter((lot) => lot.qtyRemaining > 0);
   const usedCount = lots.length - lots.filter((lot) => lot.qtyRemaining > 0).length;
 
   return (
     <div className="detail">
       <div className="detail-head">
-        <span>新しい順。出荷はいちばん下（古い便）から消費されます。</span>
+        <span>新しい順。出荷はいちばん下（導入前在庫・古い便）から消費されます。</span>
         {usedCount > 0 && (
           <button type="button" className="text-btn" onClick={() => setShowUsed((v) => !v)}>
             {showUsed ? "使い切った便を隠す" : `使い切った便も表示（${usedCount}）`}
@@ -454,7 +462,16 @@ function LotDetail({ productCodeLc }: { productCodeLc: string }) {
                 {lot.needsReview && <span className="status warn">要確認</span>}
               </td>
               <td>{lot.lotType === "shipment" ? shipmentLabel(lot.shipmentId) : "—"}</td>
-              <td>{dateOnly(lot.receivedAt)}</td>
+              <td>
+                {lot.lotType === "opening" ? (
+                  <span title="このアプリを使い始める前からあった在庫です">
+                    導入前
+                    {lot.createdAt && <small className="lot-sub">{dateOnly(lot.createdAt)} にNEから取得</small>}
+                  </span>
+                ) : (
+                  dateOnly(lot.receivedAt)
+                )}
+              </td>
               <td className="num">{count(lot.qtyIn)}</td>
               <td className="num strong">{count(lot.qtyRemaining)}</td>
               <td className="num strong">{unitYen(lot.unitCost)}</td>
@@ -748,7 +765,7 @@ export function LogsView({ logs, top }: { logs: LogRow[]; top: ReactNode }) {
               <th className="num">照合前の残り</th>
               <th className="num">古い便から消費</th>
               <th className="num">在庫増の調整</th>
-              <th className="num">期首在庫</th>
+              <th className="num">導入前在庫</th>
               <th className="num">入庫</th>
             </tr>
           </thead>

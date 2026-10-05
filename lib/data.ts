@@ -38,6 +38,8 @@ export type LotRow = {
   unitOther: number | null;
   needsReview: boolean;
   note: string | null;
+  /** 行を作った日時（導入前在庫では、NEから在庫数・原価を取ってきた日） */
+  createdAt: string;
 };
 
 export type ShipmentRow = {
@@ -178,6 +180,7 @@ export async function fetchLots(productCodeLc: string): Promise<LotRow[]> {
     unitOther: numOrNull(row.unit_other),
     needsReview: Boolean(row.needs_review),
     note: (row.note as string | null) ?? null,
+    createdAt: String(row.created_at ?? ""),
   }));
 }
 

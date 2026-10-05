@@ -244,6 +244,7 @@ a { color: var(--primary-dark); }
 .tbl--inner th { position: static; padding: 9px 12px; }
 .tbl--inner td { padding: 9px 12px; }
 .tbl--inner tr.is-used td { color: var(--light); }
+.lot-sub { display: block; font-size: 10px; color: var(--light); }
 .more { display: block; width: 100%; padding: 12px; border: 0; border-top: 1px solid var(--border-light); background: #faf9f7; color: var(--primary-dark); font-weight: 600; }
 
 .status { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap; }

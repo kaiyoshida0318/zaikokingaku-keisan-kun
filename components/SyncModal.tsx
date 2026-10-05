@@ -50,7 +50,7 @@ export default function SyncModal(props: {
               onChange={(event) => props.onSeedOpeningChange(event.target.checked)}
               disabled={props.locked}
             />
-            便のない商品も期首在庫として登録する（商品DBの全商品と、NEで在庫がある全商品を、NEの在庫数・原価で登録）
+            便のない商品も導入前在庫として登録する（商品DBの全商品と、NEで在庫がある全商品を、NEの在庫数・原価で登録）
           </label>
           {props.reconcileError && (
             <span className="form-error">
@@ -67,7 +67,7 @@ export default function SyncModal(props: {
             <span className="form-ok">
               {count(props.reconcileResult.checkedCount)}商品を照合
               {props.reconcileResult.consumedTotal > 0 && `／古い便から${count(props.reconcileResult.consumedTotal)}個消費`}
-              {props.reconcileResult.openingProducts > 0 && `／期首在庫 ${count(props.reconcileResult.openingProducts)}商品`}
+              {props.reconcileResult.openingProducts > 0 && `／導入前在庫 ${count(props.reconcileResult.openingProducts)}商品`}
               {props.reconcileResult.adjustedProducts > 0 && `／在庫増の調整 ${count(props.reconcileResult.adjustedProducts)}商品`}
               {props.reconcileResult.notFoundCount > 0 && `／NEにない商品 ${count(props.reconcileResult.notFoundCount)}件`}
             </span>
@@ -144,9 +144,9 @@ export default function SyncModal(props: {
               <td>1日1件。同じ日に何度照合しても最後の結果で上書きされます。月末の棚卸金額の控えに使えます。</td>
             </tr>
             <tr>
-              <td>期首在庫</td>
+              <td>導入前在庫</td>
               <td><span className="tag tag-btn">初回の照合でチェック</span></td>
-              <td>便がまだない商品を、NEの在庫数・原価で仮に登録します。その商品で最初に原価計算された便が入ると、期首在庫の原価はその便の原価に置き換わります。</td>
+              <td>このアプリを使い始める前からあった在庫です。便がまだない商品を、NEの在庫数・ざっくりした原価で仮に登録します。便より古い扱いなので出荷で最初に減り、その商品で最初に原価計算された便が入ると、原価はその便の原価に置き換わります。</td>
             </tr>
             <tr className="group"><td colSpan={3}>この画面</td></tr>
             <tr>
