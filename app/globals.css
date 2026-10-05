@@ -142,7 +142,7 @@ a { color: var(--primary-dark); }
 .main-asof b { color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
 .main-asof small { display: block; font-size: 11px; color: var(--light); }
 .main-value {
-  font-size: 40px; font-weight: 700; line-height: 1.05; color: var(--primary-dark);
+  font-size: 56px; font-weight: 700; line-height: 1.05; color: var(--primary-dark);
   font-variant-numeric: tabular-nums; letter-spacing: -.01em; white-space: nowrap;
 }
 .store-stack { display: flex; gap: 2px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--border-light); }
@@ -351,7 +351,7 @@ a { color: var(--primary-dark); }
   .search-box { flex-basis: 100%; max-width: none; }
   .content { padding: 12px; }
   .metric-value { font-size: 22px; }
-  .main-value { font-size: 30px; }
+  .main-value { font-size: 40px; }
   .main-asof { text-align: left; }
   .store-rows li { grid-template-columns: 10px minmax(60px, 1fr) auto 48px; }
   .store-row-meta { grid-column: 2 / -1; text-align: left; }
