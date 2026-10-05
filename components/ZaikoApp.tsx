@@ -15,7 +15,15 @@ import {
   type ShipmentRow,
   type SnapshotRow,
 } from "@/lib/data";
-import { count, dateTime, yen } from "@/lib/format";
+import {
+  count,
+  type CostRounding,
+  dateTime,
+  DEFAULT_COST_ROUNDING,
+  loadCostRounding,
+  setCostRounding,
+  yen,
+} from "@/lib/format";
 import { getSupabaseConfigError, NE_SYNC_WORKER_URL, supabase, ZAIKO_AUTH_STORAGE_KEY } from "@/lib/supabaseClient";
 import BrandMark from "./BrandMark";
 import SettingsPanel from "./SettingsPanel";
@@ -47,6 +55,17 @@ export default function ZaikoApp() {
   const [reauthUrl, setReauthUrl] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
+  // 原価の小数点の丸め（変えると単価の表示がすべて描き直される）
+  const [rounding, setRounding] = useState<CostRounding>(DEFAULT_COST_ROUNDING);
+  useEffect(() => {
+    const saved = loadCostRounding();
+    setCostRounding(saved, false);
+    setRounding(saved);
+  }, []);
+  function changeRounding(next: CostRounding) {
+    setCostRounding(next);
+    setRounding(next);
+  }
 
 
   useEffect(() => {
@@ -247,6 +266,8 @@ export default function ZaikoApp() {
             setSettingsOpen(false);
           }}
           onClose={() => setSettingsOpen(false)}
+          rounding={rounding}
+          onRoundingChange={changeRounding}
         />
       )}
       {syncOpen && (

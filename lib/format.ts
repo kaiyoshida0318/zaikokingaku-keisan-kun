@@ -3,10 +3,68 @@ export function yen(value: number | null | undefined, digits = 0): string {
   return `¥${value.toLocaleString("ja-JP", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 }
 
-/** 単価向け：100円未満は小数2桁、それ以上は1桁 */
-export function unitYen(value: number | null | undefined): string {
+/* ------------------------------------------------------------------ */
+/* 原価（単価）の小数点の丸め：設定画面で選ぶ。表示とCSVの単価だけに使い、在庫金額の計算には使わない */
+/* ------------------------------------------------------------------ */
+
+export type CostRoundingMode = "round" | "floor" | "ceil";
+export type CostRounding = { digits: 0 | 1 | 2; mode: CostRoundingMode };
+
+export const DEFAULT_COST_ROUNDING: CostRounding = { digits: 0, mode: "round" };
+const COST_ROUNDING_STORAGE_KEY = "zaiko_cost_rounding";
+
+let costRounding: CostRounding = DEFAULT_COST_ROUNDING;
+
+export function getCostRounding(): CostRounding {
+  return costRounding;
+}
+
+/** 丸めの設定を変える（persist=true ならこのブラウザに保存） */
+export function setCostRounding(next: CostRounding, persist = true): void {
+  costRounding = next;
+  if (!persist) return;
+  try {
+    window.localStorage.setItem(COST_ROUNDING_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // 保存できなくても、この画面の間は使える
+  }
+}
+
+/** このブラウザに保存された設定（なければ初期値：整数・四捨五入） */
+export function loadCostRounding(): CostRounding {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(COST_ROUNDING_STORAGE_KEY) ?? "null") as Partial<CostRounding> | null;
+    const digits = raw?.digits === 1 || raw?.digits === 2 ? raw.digits : 0;
+    const mode = raw?.mode === "floor" || raw?.mode === "ceil" ? raw.mode : "round";
+    return raw ? { digits, mode } : DEFAULT_COST_ROUNDING;
+  } catch {
+    return DEFAULT_COST_ROUNDING;
+  }
+}
+
+/** 原価を設定どおりに丸める（浮動小数の誤差で 472.5 が 472.49999… になるのを避ける） */
+export function roundCost(value: number, rounding: CostRounding = costRounding): number {
+  const f = 10 ** rounding.digits;
+  const scaled = value * f;
+  const r =
+    rounding.mode === "floor"
+      ? Math.floor(scaled + 1e-9)
+      : rounding.mode === "ceil"
+        ? Math.ceil(scaled - 1e-9)
+        : Math.sign(scaled) * Math.round(Math.abs(scaled) + 1e-9);
+  return r / f;
+}
+
+/** 単価向け：設定の桁数・丸め方で表示 */
+export function unitYen(value: number | null | undefined, rounding: CostRounding = costRounding): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
-  return yen(value, Math.abs(value) < 100 ? 2 : 1);
+  return yen(roundCost(value, rounding), rounding.digits);
+}
+
+/** CSV向け：丸めた原価（空は空欄） */
+export function unitCsv(value: number | null | undefined): number | "" {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "";
+  return roundCost(value);
 }
 
 export function count(value: number | null | undefined): string {

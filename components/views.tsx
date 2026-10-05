@@ -21,6 +21,7 @@ import {
   downloadBlob,
   shipmentLabel,
   todayJst,
+  unitCsv,
   unitYen,
   yen,
 } from "@/lib/format";
@@ -228,8 +229,8 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
           row.goodsTag ?? "",
           row.qty,
           Math.round(row.valueJpy),
-          row.avgUnitCost ?? "",
-          row.latestUnitCost ?? "",
+          unitCsv(row.avgUnitCost),
+          unitCsv(row.latestUnitCost),
           row.openLots,
           row.needsReview ? "要確認" : "",
         ]),

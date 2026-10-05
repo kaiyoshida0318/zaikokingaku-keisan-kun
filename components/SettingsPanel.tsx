@@ -1,20 +1,38 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { type CostRounding, unitYen } from "@/lib/format";
 import { LOGIN_EMAIL, supabase, supabaseUrl } from "@/lib/supabaseClient";
 import Modal from "./Modal";
 
 // 設定：キーの入力（＝専用ユーザーのパスワード認証）。
 // キーはブラウザのコードに含まれず、Supabase だけが知っている。
 // 正しいキーを入れるとこのブラウザではログインが続き、データが表示される。
+const roundingDigits: Array<[CostRounding["digits"], string]> = [
+  [0, "整数"],
+  [1, "小数1桁"],
+  [2, "小数2桁"],
+];
+const roundingModes: Array<[CostRounding["mode"], string]> = [
+  ["round", "四捨五入"],
+  ["floor", "切り捨て"],
+  ["ceil", "切り上げ"],
+];
+// 丸めの例に使う原価
+const ROUNDING_SAMPLES = [472.55, 84.333];
+
 export default function SettingsPanel({
   isUnlocked,
   onLock,
   onClose,
+  rounding,
+  onRoundingChange,
 }: {
   isUnlocked: boolean;
   onLock: () => void;
   onClose: () => void;
+  rounding: CostRounding;
+  onRoundingChange: (next: CostRounding) => void;
 }) {
   const [key, setKey] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -79,6 +97,42 @@ export default function SettingsPanel({
               {error && <p className="form-error">{error}</p>}
             </form>
           )}
+        </div>
+        <div className="settings-item settings-item--static">
+          <b>🔢 原価の小数点</b>
+          <small>
+            平均原価・便の原価など、単価の表示とCSVでの丸め方です。在庫金額は丸める前の原価で計算します。
+            設定はこのブラウザに保存されます。
+          </small>
+          <div className="settings-rounding">
+            <div className="seg" role="group" aria-label="桁数">
+              {roundingDigits.map(([digits, label]) => (
+                <button
+                  key={digits}
+                  type="button"
+                  className={rounding.digits === digits ? "active" : ""}
+                  onClick={() => onRoundingChange({ ...rounding, digits })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="seg" role="group" aria-label="丸め方">
+              {roundingModes.map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={rounding.mode === mode ? "active" : ""}
+                  onClick={() => onRoundingChange({ ...rounding, mode })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <small className="settings-example">
+            例：{ROUNDING_SAMPLES.map((v) => `¥${v} → ${unitYen(v, rounding)}`).join("　")}
+          </small>
         </div>
         <div className="settings-item settings-item--static">
           <b>🔌 接続先</b>

@@ -309,6 +309,8 @@ a { color: var(--primary-dark); }
   border-radius: var(--radius-sm); background: var(--bg); outline: none;
 }
 .settings-key-row input:focus { background: #fff; border-color: var(--primary); }
+.settings-rounding { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.settings-example { margin-top: 6px; font-variant-numeric: tabular-nums; }
 
 .refresh-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
 .refresh-summary div { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); min-width: 0; }
