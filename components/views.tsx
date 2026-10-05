@@ -122,21 +122,86 @@ export function TrendView({ snapshots, top }: { snapshots: SnapshotRow[]; top: R
 /* ------------------------------------------------------------------ */
 
 type ProductFilter = "stock" | "all" | "review";
-type ProductSortKey = "code" | "name" | "store" | "qty" | "value" | "avg" | "latest" | "lots" | "status";
+type ProductSortKey = "code" | "name" | "store" | "qty" | "value" | "avg" | "latest" | "status";
 type SortDir = "asc" | "desc";
 
-// 列の見出しをクリックして並び替え。数値の列は最初は大きい順、文字の列は昇順から。
-const productColumns: { key: ProductSortKey; label: string; num?: boolean; firstDir: SortDir }[] = [
-  { key: "code", label: "商品コード", firstDir: "asc" },
-  { key: "name", label: "商品名", firstDir: "asc" },
-  { key: "store", label: "店舗", firstDir: "asc" },
-  { key: "qty", label: "在庫数", num: true, firstDir: "desc" },
-  { key: "value", label: "在庫金額", num: true, firstDir: "desc" },
-  { key: "avg", label: "平均原価", num: true, firstDir: "desc" },
-  { key: "latest", label: "最新の便の原価", num: true, firstDir: "desc" },
-  { key: "lots", label: "便", num: true, firstDir: "desc" },
-  { key: "status", label: "状態", firstDir: "desc" },
+// 列の並び・初期の幅。見出しをクリックで並び替え（数値の列は最初は大きい順、文字の列は昇順から）、
+// 見出しの右端をドラッグで幅を変えられる。最後の列（状態）は残りの幅を使う。
+const productColumns: { key: ProductSortKey; label: string; num?: boolean; firstDir: SortDir; width: number }[] = [
+  { key: "code", label: "商品コード", firstDir: "asc", width: 210 },
+  { key: "name", label: "商品名", firstDir: "asc", width: 260 },
+  { key: "value", label: "在庫金額", num: true, firstDir: "desc", width: 130 },
+  { key: "latest", label: "最新の便の原価", num: true, firstDir: "desc", width: 130 },
+  { key: "avg", label: "平均原価", num: true, firstDir: "desc", width: 110 },
+  { key: "qty", label: "在庫数", num: true, firstDir: "desc", width: 100 },
+  { key: "store", label: "店舗", firstDir: "asc", width: 130 },
+  { key: "status", label: "状態", firstDir: "desc", width: 90 },
 ];
+
+const MIN_COL_WIDTH = 60;
+
+/**
+ * 列幅をドラッグで変えるためのフック。幅はこのブラウザに保存する。
+ * 返す startResize を見出しのつまみの onPointerDown に、reset をダブルクリックに渡す。
+ */
+function useColumnWidths<K extends string>(storageKey: string, defaults: Record<K, number>) {
+  const [widths, setWidths] = useState<Record<K, number>>(defaults);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? "null") as Partial<Record<K, number>> | null;
+      if (saved) {
+        const merged = { ...defaults };
+        for (const key of Object.keys(defaults) as K[]) {
+          const w = saved[key];
+          if (typeof w === "number" && Number.isFinite(w)) merged[key] = Math.max(MIN_COL_WIDTH, Math.round(w));
+        }
+        setWidths(merged);
+      }
+    } catch {
+      // 読めなければ初期の幅のまま
+    }
+    // 初回だけ読む
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+
+  function save(next: Record<K, number>) {
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {
+      // 保存できなくても、この画面の間は使える
+    }
+  }
+
+  function startResize(key: K, event: React.PointerEvent<HTMLElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = widths[key];
+    let latest = widths;
+    document.body.classList.add("is-col-resizing");
+    const onMove = (e: PointerEvent) => {
+      latest = { ...latest, [key]: Math.max(MIN_COL_WIDTH, Math.round(startWidth + e.clientX - startX)) };
+      setWidths(latest);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.classList.remove("is-col-resizing");
+      save(latest);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  function reset(key: K) {
+    const next = { ...widths, [key]: defaults[key] };
+    setWidths(next);
+    save(next);
+  }
+
+  return { widths, startResize, reset };
+}
 
 // 文字の中の数字は数の大きさで並べる（商品2 → 商品10）
 const textCollator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" });
@@ -151,7 +216,6 @@ function compareProducts(a: ProductRow, b: ProductRow, key: ProductSortKey): num
     case "value": return a.valueJpy - b.valueJpy;
     case "avg": return (a.avgUnitCost ?? 0) - (b.avgUnitCost ?? 0);
     case "latest": return (a.latestUnitCost ?? 0) - (b.latestUnitCost ?? 0);
-    case "lots": return a.openLots - b.openLots;
     case "status": return Number(a.needsReview) - Number(b.needsReview);
   }
 }
@@ -177,6 +241,12 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProductFilter>("stock");
   const [storeFilter, setStoreFilter] = useState<string | null>(null);
+  const columnWidths = useColumnWidths(
+    "zaiko_product_col_widths",
+    Object.fromEntries(productColumns.map((col) => [col.key, col.width])) as Record<ProductSortKey, number>,
+  );
+  // 最後の列（状態）以外の幅の合計。画面より広くなったら横にスクロールする
+  const fixedWidth = productColumns.slice(0, -1).reduce((sum, col) => sum + columnWidths.widths[col.key], 0);
   const [sort, setSort] = useState<{ key: ProductSortKey; dir: SortDir }>({ key: "value", dir: "desc" });
 
   function toggleSort(key: ProductSortKey) {
@@ -317,11 +387,20 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
             </div>
           ) : (
             <div className="tbl-wrap">
-              <table className="tbl">
+              <table className="tbl tbl--resizable" style={{ minWidth: fixedWidth + MIN_COL_WIDTH + 30 }}>
+                <colgroup>
+                  {productColumns.map((col, i) => (
+                    <col
+                      key={col.key}
+                      style={i === productColumns.length - 1 ? undefined : { width: columnWidths.widths[col.key] }}
+                    />
+                  ))}
+                </colgroup>
                 <thead>
                   <tr>
-                    {productColumns.map((col) => {
+                    {productColumns.map((col, i) => {
                       const active = sort.key === col.key;
+                      const isLast = i === productColumns.length - 1;
                       return (
                         <th
                           key={col.key}
@@ -339,6 +418,18 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
                               {active ? (sort.dir === "asc" ? "▲" : "▼") : "↕"}
                             </span>
                           </button>
+                          {!isLast && (
+                            <span
+                              className="col-resizer"
+                              role="separator"
+                              aria-orientation="vertical"
+                              aria-label={`${col.label}の幅`}
+                              title="ドラッグで幅を変更（ダブルクリックで元の幅）"
+                              onPointerDown={(event) => columnWidths.startResize(col.key, event)}
+                              onClick={(event) => event.stopPropagation()}
+                              onDoubleClick={() => columnWidths.reset(col.key)}
+                            />
+                          )}
                         </th>
                       );
                     })}
@@ -353,20 +444,39 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
                           className={`row-clickable ${isOpen ? "is-open" : ""}`}
                           onClick={() => setExpanded(isOpen ? null : row.productCodeLc)}
                         >
-                          <td className="code">
-                            <span className="chevron" aria-hidden="true">{isOpen ? "▾" : "▸"}</span>
-                            {row.productCode}
-                          </td>
-                          <td className="name">{row.productName}</td>
-                          <td title={row.goodsTag ?? "商品分類タグなし"}>
-                            <StoreBadge store={row.store} order={storeOrder} />
-                          </td>
-                          <td className="num">{count(row.qty)}</td>
-                          <td className="num strong">{yen(row.valueJpy)}</td>
-                          <td className="num">{unitYen(row.avgUnitCost)}</td>
-                          <td className="num">{unitYen(row.latestUnitCost)}</td>
-                          <td className="num">{row.openLots}</td>
-                          <td>{row.needsReview ? <span className="status warn">要確認</span> : <span className="status success">OK</span>}</td>
+                          {productColumns.map((col) => {
+                            switch (col.key) {
+                              case "code":
+                                return (
+                                  <td key={col.key} className="code" title={row.productCode}>
+                                    <span className="chevron" aria-hidden="true">{isOpen ? "▾" : "▸"}</span>
+                                    {row.productCode}
+                                  </td>
+                                );
+                              case "name":
+                                return <td key={col.key} className="name" title={row.productName}>{row.productName}</td>;
+                              case "value":
+                                return <td key={col.key} className="num strong">{yen(row.valueJpy)}</td>;
+                              case "latest":
+                                return <td key={col.key} className="num">{unitYen(row.latestUnitCost)}</td>;
+                              case "avg":
+                                return <td key={col.key} className="num">{unitYen(row.avgUnitCost)}</td>;
+                              case "qty":
+                                return <td key={col.key} className="num">{count(row.qty)}</td>;
+                              case "store":
+                                return (
+                                  <td key={col.key} title={row.goodsTag ?? "商品分類タグなし"}>
+                                    <StoreBadge store={row.store} order={storeOrder} />
+                                  </td>
+                                );
+                              case "status":
+                                return (
+                                  <td key={col.key}>
+                                    {row.needsReview ? <span className="status warn">要確認</span> : <span className="status success">OK</span>}
+                                  </td>
+                                );
+                            }
+                          })}
                         </tr>
                         {isOpen && (
                           <tr className="detail-row">
