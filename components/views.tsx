@@ -574,25 +574,25 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
         </span>
         {usedCount > 0 && (
           <button type="button" className="text-btn" onClick={() => setShowUsed((v) => !v)}>
-            {showUsed ? "使い切った便を隠す" : `使い切った便も表示（${usedCount}）`}
+            {showUsed ? "出荷済みの在庫を隠す" : `出荷済みの在庫も表示（${usedCount}）`}
           </button>
         )}
       </div>
       <table className="tbl tbl--inner">
         <thead>
           <tr>
-            <th>出荷順</th>
-            <th>種類</th>
-            <th>便</th>
-            <th>登録日</th>
+            <th>出荷状況</th>
             <th className="num">入庫数</th>
             <th className="num">残り</th>
+            <th className="num">残り金額</th>
             <th className="num">1単位原価</th>
             <th className="num">商品</th>
             <th className="num">オプション</th>
             <th className="num">国内運賃</th>
             <th className="num">国際送料</th>
-            <th className="num">残り金額</th>
+            <th>種類</th>
+            <th>便</th>
+            <th>登録日</th>
             <th>メモ</th>
           </tr>
         </thead>
@@ -603,14 +603,26 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
             return (
               <tr key={lot.id} className={rank === undefined ? "is-used" : rank === 1 ? "is-next" : ""}>
                 <td>
+                  {/* 出荷中より新しい在庫（2番目以降）は空欄 */}
                   {rank === undefined ? (
-                    <span className="consume consume--used">使い切り</span>
+                    <span className="consume consume--used">出荷済み</span>
                   ) : rank === 1 ? (
                     <span className="consume consume--next">▶ 出荷中</span>
-                  ) : (
-                    <span className="consume consume--wait">{rank}番目</span>
-                  )}
+                  ) : null}
                 </td>
+                <td className="num">{count(lot.qtyIn)}</td>
+                <td className="num strong">
+                  <span className="meter" aria-hidden="true" title={`入庫数の${Math.round(ratio * 100)}%が残っています`}>
+                    <span style={{ width: `${Math.round(ratio * 100)}%` }} />
+                  </span>
+                  {count(lot.qtyRemaining)}
+                </td>
+                <td className="num">{yen(lot.qtyRemaining * (lot.unitCost ?? 0))}</td>
+                <td className="num strong">{unitYen(lot.unitCost)}</td>
+                <td className="num">{unitYen(lot.unitGoods)}</td>
+                <td className="num">{unitYen(lot.unitOption)}</td>
+                <td className="num">{unitYen(lot.unitDomestic)}</td>
+                <td className="num">{unitYen(lot.unitIntl === null && lot.unitOther === null ? null : (lot.unitIntl ?? 0) + (lot.unitOther ?? 0))}</td>
                 <td>
                   {lotTypeLabel[lot.lotType]}
                   {lot.needsReview && <span className="status warn">要確認</span>}
@@ -626,19 +638,6 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
                     dateOnly(lot.receivedAt)
                   )}
                 </td>
-                <td className="num">{count(lot.qtyIn)}</td>
-                <td className="num strong">
-                  <span className="meter" aria-hidden="true" title={`入庫数の${Math.round(ratio * 100)}%が残っています`}>
-                    <span style={{ width: `${Math.round(ratio * 100)}%` }} />
-                  </span>
-                  {count(lot.qtyRemaining)}
-                </td>
-                <td className="num strong">{unitYen(lot.unitCost)}</td>
-                <td className="num">{unitYen(lot.unitGoods)}</td>
-                <td className="num">{unitYen(lot.unitOption)}</td>
-                <td className="num">{unitYen(lot.unitDomestic)}</td>
-                <td className="num">{unitYen(lot.unitIntl === null && lot.unitOther === null ? null : (lot.unitIntl ?? 0) + (lot.unitOther ?? 0))}</td>
-                <td className="num">{yen(lot.qtyRemaining * (lot.unitCost ?? 0))}</td>
                 <td className="note">
                   {lot.note ?? ""}
                   {lot.preAppCost !== null && (
