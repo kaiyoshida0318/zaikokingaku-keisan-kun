@@ -13,7 +13,17 @@ export type ProductRow = {
   /** 店舗（NEの商品分類タグから判定）。判定できない商品は UNSET_STORE */
   store: string;
   goodsTag: string | null;
+  /** 商品画像のURL（商品DBと同じ Supabase Storage の product-images/商品コード.webp）。ないときは画面で非表示 */
+  imageUrl: string;
 };
+
+/** 商品DBと同じ置き場所の商品画像（public バケット product-images に「商品コード.webp」） */
+const PRODUCT_IMAGE_BUCKET = "product-images";
+export function productImageUrl(productCode: string): string {
+  const code = productCode.trim();
+  if (!code || !supabase) return "";
+  return supabase.storage.from(PRODUCT_IMAGE_BUCKET).getPublicUrl(`${code}.webp`).data.publicUrl ?? "";
+}
 
 /** 店舗が判定できない商品の表示名 */
 export const UNSET_STORE = "未設定";
@@ -141,6 +151,10 @@ export async function fetchProducts(): Promise<ProductRow[]> {
   const nameByCode = new Map(
     names.map((row) => [String(row.product_code ?? "").toLowerCase(), String(row.product_name ?? "")]),
   );
+  // 画像のファイル名は商品DBの商品コードどおり（大文字・小文字を合わせる）
+  const dbCodeByLc = new Map(
+    names.map((row) => [String(row.product_code ?? "").toLowerCase(), String(row.product_code ?? "")]),
+  );
   const storeByCode = new Map(stores.map((row) => [String(row.product_code_lc ?? ""), row]));
   return rows.map((row) => ({
     productCode: String(row.product_code ?? ""),
@@ -154,6 +168,7 @@ export async function fetchProducts(): Promise<ProductRow[]> {
     needsReview: Boolean(row.needs_review),
     store: String(storeByCode.get(String(row.product_code_lc ?? ""))?.store ?? "") || UNSET_STORE,
     goodsTag: (storeByCode.get(String(row.product_code_lc ?? ""))?.goods_tag as string | null | undefined) ?? null,
+    imageUrl: productImageUrl(dbCodeByLc.get(String(row.product_code_lc ?? "")) ?? String(row.product_code ?? "")),
   }));
 }
 

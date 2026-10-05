@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, ReactNode, useEffect, useMemo, useState } from "react";
+import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import Modal from "./Modal";
 import {
   fetchLots,
   fetchSnapshotItems,
@@ -237,16 +238,45 @@ export function StoreBadge({ store, order }: { store: string; order: string[] })
   return <span className={`store-badge store-badge--${storeTone(store, order)}`}>{store}</span>;
 }
 
+const IMAGE_COL_WIDTH = 64;
+
+/** 商品画像（商品DBと同じ画像）。ないときは空の枠。押すと大きく表示 */
+function ProductThumb({ row, onPreview }: { row: ProductRow; onPreview: (row: ProductRow) => void }) {
+  const [failed, setFailed] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  // 画面の準備より先に読み込みに失敗すると onError が呼ばれないので、表示後にも確かめる
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth === 0) setFailed(true);
+  }, [row.imageUrl]);
+  if (!row.imageUrl || failed) return <span className="thumb thumb--empty" aria-label="画像なし" />;
+  return (
+    <button
+      type="button"
+      className="thumb"
+      title="画像を大きく表示"
+      onClick={(event) => {
+        event.stopPropagation();
+        onPreview(row);
+      }}
+    >
+      <img ref={imgRef} src={row.imageUrl} alt="" loading="lazy" onError={() => setFailed(true)} />
+    </button>
+  );
+}
+
 export function ProductsView({ products, top }: { products: ProductRow[]; top: ReactNode }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ProductFilter>("stock");
   const [storeFilter, setStoreFilter] = useState<string | null>(null);
+  const [preview, setPreview] = useState<ProductRow | null>(null);
   const columnWidths = useColumnWidths(
     "zaiko_product_col_widths",
     Object.fromEntries(productColumns.map((col) => [col.key, col.width])) as Record<ProductSortKey, number>,
   );
   // 最後の列（状態）以外の幅の合計。画面より広くなったら横にスクロールする
-  const fixedWidth = productColumns.slice(0, -1).reduce((sum, col) => sum + columnWidths.widths[col.key], 0);
+  const fixedWidth =
+    IMAGE_COL_WIDTH + productColumns.slice(0, -1).reduce((sum, col) => sum + columnWidths.widths[col.key], 0);
   const [sort, setSort] = useState<{ key: ProductSortKey; dir: SortDir }>({ key: "value", dir: "desc" });
 
   function toggleSort(key: ProductSortKey) {
@@ -389,6 +419,7 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
             <div className="tbl-wrap">
               <table className="tbl tbl--resizable" style={{ minWidth: fixedWidth + MIN_COL_WIDTH + 30 }}>
                 <colgroup>
+                  <col style={{ width: IMAGE_COL_WIDTH }} />
                   {productColumns.map((col, i) => (
                     <col
                       key={col.key}
@@ -398,6 +429,7 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
                 </colgroup>
                 <thead>
                   <tr>
+                    <th className="thumb-cell" aria-label="画像" />
                     {productColumns.map((col, i) => {
                       const active = sort.key === col.key;
                       const isLast = i === productColumns.length - 1;
@@ -444,6 +476,9 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
                           className={`row-clickable ${isOpen ? "is-open" : ""}`}
                           onClick={() => setExpanded(isOpen ? null : row.productCodeLc)}
                         >
+                          <td className="thumb-cell">
+                            <ProductThumb row={row} onPreview={setPreview} />
+                          </td>
                           {productColumns.map((col) => {
                             switch (col.key) {
                               case "code":
@@ -480,7 +515,7 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
                         </tr>
                         {isOpen && (
                           <tr className="detail-row">
-                            <td colSpan={productColumns.length}>
+                            <td colSpan={productColumns.length + 1}>
                               <LotDetail productCodeLc={row.productCodeLc} />
                             </td>
                           </tr>
@@ -499,6 +534,14 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
           )}
         </div>
       </main>
+      {preview && (
+        <Modal title={preview.productCode} onClose={() => setPreview(null)}>
+          <div className="thumb-preview">
+            <img src={preview.imageUrl} alt={preview.productName || preview.productCode} />
+            {preview.productName && <p>{preview.productName}</p>}
+          </div>
+        </Modal>
+      )}
     </>
   );
 }
@@ -581,19 +624,22 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
       <table className="tbl tbl--inner">
         <thead>
           <tr>
-            <th>出荷状況</th>
-            <th className="num">入庫数</th>
-            <th className="num">残り</th>
-            <th className="num">残り金額</th>
-            <th className="num">1単位原価</th>
-            <th className="num">商品</th>
-            <th className="num">オプション</th>
-            <th className="num">国内運賃</th>
-            <th className="num">国際送料</th>
-            <th>種類</th>
-            <th>便</th>
-            <th>登録日</th>
-            <th>メモ</th>
+            <th rowSpan={2}>出荷状況</th>
+            <th rowSpan={2} className="num">入庫数</th>
+            <th rowSpan={2} className="num">残り</th>
+            <th rowSpan={2} className="num">残り金額</th>
+            <th colSpan={5} className="cost-group-head">1単位原価 ＝ 商品 ＋ オプション ＋ 国内運賃 ＋ 国際送料</th>
+            <th rowSpan={2}>種類</th>
+            <th rowSpan={2}>便</th>
+            <th rowSpan={2}>登録日</th>
+            <th rowSpan={2}>メモ</th>
+          </tr>
+          <tr>
+            <th className="num cost-col cost-col--first">1単位原価</th>
+            <th className="num cost-col"><span className="cost-op">＝</span>商品</th>
+            <th className="num cost-col"><span className="cost-op">＋</span>オプション</th>
+            <th className="num cost-col"><span className="cost-op">＋</span>国内運賃</th>
+            <th className="num cost-col cost-col--last"><span className="cost-op">＋</span>国際送料</th>
           </tr>
         </thead>
         <tbody>
@@ -618,11 +664,22 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
                   {count(lot.qtyRemaining)}
                 </td>
                 <td className="num">{yen(lot.qtyRemaining * (lot.unitCost ?? 0))}</td>
-                <td className="num strong">{unitYen(lot.unitCost)}</td>
-                <td className="num">{unitYen(lot.unitGoods)}</td>
-                <td className="num">{unitYen(lot.unitOption)}</td>
-                <td className="num">{unitYen(lot.unitDomestic)}</td>
-                <td className="num">{unitYen(lot.unitIntl === null && lot.unitOther === null ? null : (lot.unitIntl ?? 0) + (lot.unitOther ?? 0))}</td>
+                <td className="num strong cost-col cost-col--first">{unitYen(lot.unitCost)}</td>
+                {hasBreakdown(lot) ? (
+                  <>
+                    <td className="num cost-col"><span className="cost-op">＝</span>{unitYen(lot.unitGoods ?? 0)}</td>
+                    <td className="num cost-col"><span className="cost-op">＋</span>{unitYen(lot.unitOption ?? 0)}</td>
+                    <td className="num cost-col"><span className="cost-op">＋</span>{unitYen(lot.unitDomestic ?? 0)}</td>
+                    <td className="num cost-col cost-col--last">
+                      <span className="cost-op">＋</span>
+                      {unitYen((lot.unitIntl ?? 0) + (lot.unitOther ?? 0))}
+                    </td>
+                  </>
+                ) : (
+                  <td colSpan={4} className="cost-col cost-col--last cost-none">
+                    {lot.lotType === "opening" ? "内訳なし（NEの原価）" : "内訳なし"}
+                  </td>
+                )}
                 <td>
                   {lotTypeLabel[lot.lotType]}
                   {lot.needsReview && <span className="status warn">要確認</span>}
@@ -653,6 +710,11 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
       </table>
     </div>
   );
+}
+
+/** 原価の内訳（商品・オプション・国内運賃・国際送料）があるか。導入前在庫・調整は内訳がないことが多い */
+function hasBreakdown(lot: LotRow): boolean {
+  return [lot.unitGoods, lot.unitOption, lot.unitDomestic, lot.unitIntl, lot.unitOther].some((v) => v !== null);
 }
 
 /** 「09/15 21:47便」「導入前在庫」など、在庫の呼び名 */

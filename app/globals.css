@@ -213,6 +213,18 @@ a { color: var(--primary-dark); }
   font-size: 13px; vertical-align: middle; white-space: nowrap;
 }
 .tbl th { position: sticky; top: 0; z-index: 1; background: var(--bg); font-size: 11px; color: var(--muted); font-weight: 600; }
+/* 商品画像（商品DBと同じ画像） */
+.tbl th.thumb-cell, .tbl td.thumb-cell { padding: 6px 8px 6px 14px; }
+.thumb {
+  display: inline-flex; width: 40px; height: 40px; padding: 0; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 7px; background: #fff; overflow: hidden; vertical-align: middle;
+}
+button.thumb:hover { border-color: var(--primary); }
+.thumb img { width: 100%; height: 100%; object-fit: contain; }
+.thumb--empty { background: var(--bg); border-style: dashed; }
+.thumb-preview { display: grid; justify-items: center; gap: 10px; }
+.thumb-preview img { max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 8px; }
+.thumb-preview p { color: var(--muted); font-size: 13px; }
 /* 列幅を変えられる表（商品一覧） */
 .tbl--resizable { table-layout: fixed; }
 .tbl--resizable th, .tbl--resizable td { overflow: hidden; text-overflow: ellipsis; }
@@ -267,6 +279,19 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 .detail-head b.next-word { color: var(--primary-dark); }
 .detail-head b { color: var(--text); }
 .lot-sub { display: block; font-size: 10px; color: var(--light); }
+/* 1単位原価 ＝ 内訳の合計、をまとまりで見せる */
+.tbl--inner th.cost-group-head {
+  text-align: center; background: #fff1eb; color: #b4380e; border-bottom: 1px solid #fbd5c4;
+  border-left: 2px solid #fbc8b3; border-right: 2px solid #fbc8b3;
+}
+.tbl--inner .cost-col { background: #fffaf7; }
+.tbl--inner th.cost-col { background: #fff6f1; }
+.tbl--inner .cost-col--first { border-left: 2px solid #fbc8b3; }
+.tbl--inner .cost-col--last { border-right: 2px solid #fbc8b3; }
+.tbl--inner tr.is-next td.cost-col { background: #ffefe6; }
+.tbl--inner tr.is-used td.cost-col { background: #fdfcfb; }
+.cost-op { color: #e8a58a; font-weight: 700; margin-right: 6px; }
+.tbl--inner td.cost-none { text-align: center; color: var(--light); font-size: 12px; }
 .pre-app-cost {
   display: table; margin-top: 4px; padding: 1px 8px; border-radius: 10px;
   background: var(--bg); border: 1px dashed var(--border); color: var(--muted); font-size: 11px; white-space: nowrap;
