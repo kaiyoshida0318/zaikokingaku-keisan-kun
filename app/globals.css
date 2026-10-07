@@ -104,19 +104,21 @@ a { color: var(--primary-dark); }
 .content { padding: 20px; max-width: 1600px; margin: auto; display: grid; gap: 16px; }
 .metric-grid { display: grid; grid-template-columns: fit-content(70%) minmax(320px, 1fr); gap: 16px; align-items: stretch; }
 /* 右の1枚：商品コード数・総在庫数・平均原価（店舗別の内訳つき） */
-.metric-card.metric-side { display: grid; align-content: stretch; gap: 0; padding: 4px 18px; }
-/* 1項目＝「ラベル｜数字｜店舗別（縦2行）」の1行にして、カード全体の高さを抑える */
+/* 商品コード数・総在庫数・平均原価を横3列に並べる（各列＝ラベル／数字／店舗別） */
+.metric-card.metric-side {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; gap: 0; padding: 14px 0;
+}
 .side-row {
-  display: grid; grid-template-columns: 92px auto minmax(0, 1fr); grid-template-areas: "label value stores";
-  column-gap: 12px; align-items: center; padding: 7px 0; border-top: 1px solid var(--border-light);
+  display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "label" "value" "stores";
+  row-gap: 2px; align-content: center; padding: 2px 22px; border-left: 1px solid var(--border-light);
 }
 .side-label { grid-area: label; }
 .side-value { grid-area: value; }
 .side-stores { grid-area: stores; }
-.side-row:first-child { border-top: 0; }
+.side-row:first-child { border-left: 0; }
 .side-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
-.side-value { font-size: 22px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.side-stores { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 11px; line-height: 1.35; color: var(--muted); min-width: 0; }
+.side-value { font-size: 28px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.side-stores { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; margin-top: 4px; font-size: 11px; line-height: 1.4; color: var(--muted); min-width: 0; }
 .side-store { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .side-store .store-dot { width: 8px; height: 8px; border-radius: 2px; }
 .side-store b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -410,8 +412,6 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 /* ---------- responsive ---------- */
 @media (max-width: 1100px) {
   .metric-grid { grid-template-columns: minmax(0, 1fr); }
-  .metric-card.metric-side { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-  .metric-card.metric-side .side-row { border-top: 0; }
 }
 @media (max-width: 760px) {
   .app-header { height: auto; flex-wrap: wrap; padding: 8px 12px; gap: 8px; }
@@ -434,9 +434,15 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
   .main-asof { text-align: left; justify-self: start; }
   .store-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; row-gap: 10px; }
   .store-rows li { border-left: 0; padding: 0; }
-  .metric-card.metric-side { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .metric-card.metric-side .side-row { border-top: 1px solid var(--border-light); }
+  /* スマホは縦に積み、1項目＝「ラベル｜数字｜店舗別」の1行 */
+  .metric-card.metric-side { grid-template-columns: minmax(0, 1fr); padding: 4px 18px; }
+  .metric-card.metric-side .side-row {
+    grid-template-columns: 92px auto minmax(0, 1fr); grid-template-areas: "label value stores";
+    column-gap: 12px; align-items: center; padding: 8px 0; border-left: 0; border-top: 1px solid var(--border-light);
+  }
   .metric-card.metric-side .side-row:first-child { border-top: 0; }
+  .metric-card.metric-side .side-value { font-size: 22px; }
+  .metric-card.metric-side .side-stores { align-items: flex-end; margin-top: 0; }
   .refresh-summary { grid-template-columns: 1fr; }
   .refresh-action { flex-wrap: wrap; }
   .refresh-table th.when, .refresh-table td:first-child { width: auto; }
