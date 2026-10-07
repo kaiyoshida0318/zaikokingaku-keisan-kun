@@ -959,7 +959,7 @@ function lotName(lot: LotRow): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* 便別                                                                 */
+/* 入庫履歴（便ごと）                                                   */
 /* ------------------------------------------------------------------ */
 
 export function ShipmentsView({ shipments, top }: { shipments: ShipmentRow[]; top: ReactNode }) {
@@ -970,7 +970,7 @@ export function ShipmentsView({ shipments, top }: { shipments: ShipmentRow[]; to
         {top}
         <div className="panel">
           <div className="panel-toolbar">
-            <h2>🚚 便別（配送依頼書ごと）</h2>
+            <h2>🚚 入庫履歴（配送依頼書ごと）</h2>
             <div className="toolbar-spacer" />
             <span className="result-count">{count(shipments.length)}便・残り {yen(remaining)}</span>
           </div>

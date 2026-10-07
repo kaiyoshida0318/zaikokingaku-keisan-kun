@@ -111,9 +111,6 @@ export default function InventorySummary({
                   <span className="store-row-share">
                     {totals.value > 0 ? ((t.v / totals.value) * 100).toFixed(1) : "0.0"}%
                   </span>
-                  <span className="store-row-meta">
-                    {count(t.q)}個・{count(t.n)}商品
-                  </span>
                 </li>
               ))}
             </ul>

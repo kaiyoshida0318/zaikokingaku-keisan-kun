@@ -159,7 +159,7 @@ a { color: var(--primary-dark); }
 .main-asof b { color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
 .main-asof small { display: block; font-size: 11px; color: var(--light); }
 .main-value {
-  font-size: 60px; font-weight: 700; line-height: 1.05; color: var(--primary-dark);
+  font-size: 65px; font-weight: 700; line-height: 1.05; color: var(--primary-dark);
   font-variant-numeric: tabular-nums; letter-spacing: -.01em; white-space: nowrap;
 }
 .store-stack { display: flex; gap: 2px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--border-light); }
@@ -168,16 +168,15 @@ a { color: var(--primary-dark); }
 .store-rows { list-style: none; display: flex; flex-wrap: wrap; row-gap: 8px; }
 .store-rows li {
   display: grid; grid-template-columns: 10px auto auto; justify-content: start;
-  grid-template-areas: "dot name share" ". value value" ". meta meta";
+  grid-template-areas: "dot name share" ". value value";
   column-gap: 6px; row-gap: 1px; align-items: center; padding: 0 22px; border-left: 1px solid var(--border-light);
   font-variant-numeric: tabular-nums; min-width: 0;
 }
 .store-rows li:first-child { border-left: 0; padding-left: 0; }
 .store-dot { grid-area: dot; width: 10px; height: 10px; border-radius: 3px; }
-.store-row-name { grid-area: name; font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.store-row-share { grid-area: share; font-size: 11px; color: var(--muted); margin-left: 2px; }
-.store-row-value { grid-area: value; font-size: 17px; font-weight: 700; white-space: nowrap; line-height: 1.25; }
-.store-row-meta { grid-area: meta; font-size: 11px; color: var(--light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.store-row-name { grid-area: name; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.store-row-share { grid-area: share; font-size: 12px; color: var(--muted); margin-left: 2px; }
+.store-row-value { grid-area: value; font-size: 22px; font-weight: 700; white-space: nowrap; line-height: 1.25; }
 /* 店舗の色（商品一覧のバッジと同じ並び） */
 .tone-s0 { background: var(--primary); }
 .tone-s1 { background: var(--blue); }

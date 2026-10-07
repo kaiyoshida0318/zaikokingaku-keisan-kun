@@ -214,7 +214,7 @@ export default function ZaikoApp() {
             ["products", "📦 商品別", locked ? null : totals.products],
             ["snapshots", "📅 在庫推移(表)", locked ? null : snapshots.length],
             ["trend", "📈 在庫推移(グラフ)", null],
-            ["shipments", "🚚 便別", locked ? null : shipments.length],
+            ["shipments", "🚚 入庫履歴", locked ? null : shipments.length],
             ["logs", "🕒 照合ログ", null],
           ] as const
         ).map(([key, label, n]) => (
