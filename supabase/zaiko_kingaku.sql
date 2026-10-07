@@ -212,3 +212,48 @@ end;
 $$;
 
 grant execute on function public.cost_take_snapshot(text) to authenticated, service_role;
+
+-- =====================================================================
+-- 在庫推移(表)の「増減・入庫・出荷」：記録（スナップショット）ごとに、前回の記録からの出入りの金額を照合ログから合計する
+--   received_value = 入庫一括で登録した分（数量 × 便の原価）
+--   adjusted_value = 在庫増の調整（返品・棚卸増など）
+--   opening_value  = 導入前在庫の登録
+--   shipped_value  = 古い便から差し引いた分＝出荷（先入先出の原価）
+--   過去の便の原価だけの登録（event = 'backfill'）は実際の入出荷ではないので数えない
+--   金額を記録する前のログが混じる期間は *_complete = false（画面では「—」）
+-- 金額の列は入庫一括の cost_lots.sql でも足すが、先にこちらを実行しても動くようにここでも足す
+-- =====================================================================
+alter table public.cost_stock_log
+  add column if not exists added_value    numeric,
+  add column if not exists adjusted_value numeric,
+  add column if not exists opening_value  numeric,
+  add column if not exists consumed_value numeric;
+
+create index if not exists cost_stock_log_logged_at_idx on public.cost_stock_log (logged_at);
+
+drop view if exists public.cost_snapshot_movements;
+create view public.cost_snapshot_movements
+with (security_invoker = true) as
+with s as (
+  select snapshot_date, taken_at, lag(taken_at) over (order by snapshot_date) as prev_at
+    from public.cost_inventory_snapshots
+), l as (
+  select * from public.cost_stock_log where event <> 'backfill'
+)
+select
+  s.snapshot_date,
+  s.prev_at,
+  coalesce(sum(l.added_value), 0)    as received_value,
+  coalesce(sum(l.adjusted_value), 0) as adjusted_value,
+  coalesce(sum(l.opening_value), 0)  as opening_value,
+  coalesce(sum(l.consumed_value), 0) as shipped_value,
+  -- 金額を記録する前のログ（数量はあるのに金額が空）が混じっていないか
+  not coalesce(bool_or(
+    (l.added > 0 and l.added_value is null) or (l.adjusted > 0 and l.adjusted_value is null)
+    or (l.opening > 0 and l.opening_value is null) or (l.consumed > 0 and l.consumed_value is null)
+  ), false) as values_complete
+from s
+left join l on s.prev_at is not null and l.logged_at > s.prev_at and l.logged_at <= s.taken_at
+group by s.snapshot_date, s.prev_at;
+
+grant select on public.cost_snapshot_movements to authenticated, service_role;

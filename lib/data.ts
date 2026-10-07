@@ -81,6 +81,16 @@ export type SnapshotRow = {
   needsReviewCount: number;
   /** 店舗別の内訳（店舗に対応する前の記録は空） */
   byStore: Record<string, StoreTotals>;
+  /** 前回の記録からの出入りの金額（照合ログから。ビューがない・最初の記録は null） */
+  movement: SnapshotMovement | null;
+};
+
+export type SnapshotMovement = {
+  receivedValue: number; // 入庫一括で登録した分
+  adjustedValue: number; // 在庫増の調整（返品・棚卸増など）
+  openingValue: number; // 導入前在庫の登録
+  shippedValue: number; // 出荷（先入先出の原価）
+  complete: boolean; // 金額を記録する前のログが混じっていない
 };
 
 export type LogRow = {
@@ -245,6 +255,25 @@ export async function fetchSnapshots(): Promise<SnapshotRow[]> {
   // by_store 列がまだない（SQL未実行）ときは店舗なしで読む
   if (error) ({ data, error } = await query(base));
   if (error) throw friendly(error);
+  // 前回の記録からの出入り（cost_snapshot_movements がまだなければ出入りなし）
+  const movements = new Map<string, SnapshotMovement>();
+  const mv = await client()
+    .from("cost_snapshot_movements")
+    .select("snapshot_date,prev_at,received_value,adjusted_value,opening_value,shipped_value,values_complete")
+    .order("snapshot_date", { ascending: false })
+    .limit(400);
+  if (!mv.error) {
+    for (const row of (mv.data ?? []) as Record<string, unknown>[]) {
+      if (!row.prev_at) continue; // 最初の記録は比べる相手がない
+      movements.set(String(row.snapshot_date), {
+        receivedValue: num(row.received_value),
+        adjustedValue: num(row.adjusted_value),
+        openingValue: num(row.opening_value),
+        shippedValue: num(row.shipped_value),
+        complete: Boolean(row.values_complete),
+      });
+    }
+  }
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
     snapshotDate: String(row.snapshot_date),
     takenAt: String(row.taken_at ?? ""),
@@ -254,6 +283,7 @@ export async function fetchSnapshots(): Promise<SnapshotRow[]> {
     productCount: num(row.product_count),
     needsReviewCount: num(row.needs_review_count),
     byStore: parseByStore(row.by_store),
+    movement: movements.get(String(row.snapshot_date)) ?? null,
   }));
 }
 

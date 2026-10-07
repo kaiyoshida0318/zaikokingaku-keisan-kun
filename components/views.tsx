@@ -1041,6 +1041,18 @@ export function ShipmentsView({ shipments, top }: { shipments: ShipmentRow[]; to
 /* スナップショット                                                     */
 /* ------------------------------------------------------------------ */
 
+/** 前回の記録との比較：増減（金額）と、その間の入庫・出荷 */
+type SnapshotChange = {
+  diff: number; // 在庫金額の増減
+  inValue: number; // 入庫（入庫一括＋在庫増の調整）
+  received: number;
+  adjusted: number;
+  opening: number; // 導入前在庫の登録
+  outValue: number; // 出荷（先入先出の原価）
+  other: number; // 増減のうち、入庫・出荷・導入前在庫で説明できない分（原価の置き換えなど）
+  complete: boolean; // 金額を記録する前のログが混じっていない
+};
+
 export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; top: ReactNode }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1061,18 +1073,63 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
     });
   }
 
-  const rows = useMemo(() => {
-    const inMonths = snapshots.filter((row) => pickedMonths === null || pickedMonths.has(row.snapshotDate.slice(0, 7)));
-    if (!monthEndOnly) return inMonths;
-    // 月別：各月の最後の日付（月末時点）だけ
+  // 日別ならすべての記録、月別なら各月の最後の記録（月末時点）。新しい順
+  const series = useMemo(() => {
+    const sorted = [...snapshots].sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate));
+    if (!monthEndOnly) return sorted;
     const seen = new Set<string>();
-    return inMonths.filter((row) => {
+    return sorted.filter((row) => {
       const month = row.snapshotDate.slice(0, 7);
       if (seen.has(month)) return false;
       seen.add(month);
       return true;
     });
-  }, [snapshots, monthEndOnly, pickedMonths]);
+  }, [snapshots, monthEndOnly]);
+
+  // 1つ前（日別は前日、月別は前月末）との比較。入庫・出荷はその間の記録ごとの出入りを合計する
+  const changes = useMemo(() => {
+    const byDateAsc = [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+    const map = new Map<string, SnapshotChange>();
+    series.forEach((row, i) => {
+      const prev = series[i + 1];
+      if (!prev) return;
+      const between = byDateAsc.filter((s) => s.snapshotDate > prev.snapshotDate && s.snapshotDate <= row.snapshotDate);
+      let received = 0;
+      let adjusted = 0;
+      let opening = 0;
+      let outValue = 0;
+      let complete = true;
+      for (const s of between) {
+        if (!s.movement) {
+          complete = false;
+          continue;
+        }
+        received += s.movement.receivedValue;
+        adjusted += s.movement.adjustedValue;
+        opening += s.movement.openingValue;
+        outValue += s.movement.shippedValue;
+        if (!s.movement.complete) complete = false;
+      }
+      const diff = row.totalValueJpy - prev.totalValueJpy;
+      const inValue = received + adjusted;
+      map.set(row.snapshotDate, {
+        diff,
+        inValue,
+        received,
+        adjusted,
+        opening,
+        outValue,
+        other: diff - (inValue - outValue + opening),
+        complete,
+      });
+    });
+    return map;
+  }, [snapshots, series]);
+
+  const rows = useMemo(
+    () => series.filter((row) => pickedMonths === null || pickedMonths.has(row.snapshotDate.slice(0, 7))),
+    [series, pickedMonths],
+  );
 
   // 記録に出てくる店舗（店舗に対応する前の記録には内訳がない）
   const stores = useMemo(() => {
@@ -1086,28 +1143,51 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
   function exportList() {
     downloadBlob(
       csvBlob(
-        ["日付", "照合", "在庫金額", ...stores.map((store) => `${store}（金額）`), "在庫数", ...stores.map((store) => `${store}（個数）`), "商品数", "要確認"],
-        rows.map((row) => [
-          row.snapshotDate,
-          row.source === "cron" ? "自動" : "手動",
-          Math.round(row.totalValueJpy),
-          ...stores.map((store) => (row.byStore[store] ? Math.round(row.byStore[store].v) : "")),
-          row.totalQty,
-          ...stores.map((store) => row.byStore[store]?.q ?? ""),
-          row.productCount,
-          row.needsReviewCount,
-        ]),
+        [
+          "日付",
+          "照合",
+          "在庫金額",
+          ...stores.map((store) => `${store}（金額）`),
+          "増減",
+          "入庫",
+          "出荷",
+          "在庫数",
+          ...stores.map((store) => `${store}（個数）`),
+          "商品数",
+          "要確認",
+        ],
+        rows.map((row) => {
+          const c = changes.get(row.snapshotDate);
+          return [
+            row.snapshotDate,
+            row.source === "cron" ? "自動" : "手動",
+            Math.round(row.totalValueJpy),
+            ...stores.map((store) => (row.byStore[store] ? Math.round(row.byStore[store].v) : "")),
+            c ? Math.round(c.diff) : "",
+            c && c.complete ? Math.round(c.inValue) : "",
+            c && c.complete ? Math.round(c.outValue) : "",
+            row.totalQty,
+            ...stores.map((store) => row.byStore[store]?.q ?? ""),
+            row.productCount,
+            row.needsReviewCount,
+          ];
+        }),
       ),
       `在庫推移_${monthEndOnly ? "月別" : "日別"}_${todayJst()}.csv`,
     );
   }
 
   // 列（店舗の列は記録に出てくる店舗の数だけ）。最後の「商品別CSV」の列は残りの幅を使う
-  const snapshotColumns: Array<{ key: string; label: string; num?: boolean; width: number }> = [
+  // group：金額のまとまり（在庫金額＋店舗）と、その動き（増減＋入庫・出荷）を薄い背景でまとめる
+  type SnapCol = { key: string; label: string; num?: boolean; width: number; group?: "value" | "move"; sub?: boolean; store?: string };
+  const snapshotColumns: SnapCol[] = [
     { key: "date", label: "日付", width: 120 },
     { key: "time", label: "記録時刻", width: 90 },
-    { key: "value", label: "在庫金額", num: true, width: 140 },
-    ...stores.map((store) => ({ key: `store:${store}`, label: store, num: true, width: 140 })),
+    { key: "value", label: "在庫金額", num: true, width: 140, group: "value" },
+    ...stores.map((store): SnapCol => ({ key: `store:${store}`, label: store, num: true, width: 140, group: "value", sub: true, store })),
+    { key: "diff", label: "増減", num: true, width: 130, group: "move" },
+    { key: "in", label: "入庫", num: true, width: 120, group: "move", sub: true },
+    { key: "out", label: "出荷", num: true, width: 120, group: "move", sub: true },
     { key: "qty", label: "在庫数", num: true, width: 110 },
     { key: "products", label: "商品数", num: true, width: 90 },
     { key: "source", label: "照合", width: 80 },
@@ -1117,6 +1197,18 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
     Object.fromEntries(snapshotColumns.map((col) => [col.key, col.width])),
   );
   const snapshotFixedWidth = snapshotColumns.reduce((sum, col) => sum + snapshotWidths.widthOf(col.key), 0);
+  const groupClass = (col: SnapCol) => {
+    if (!col.group) return "";
+    const cols = snapshotColumns.filter((c) => c.group === col.group);
+    return [
+      `grp grp--${col.group}`,
+      cols[0].key === col.key ? "grp-start" : "",
+      cols[cols.length - 1].key === col.key ? "grp-end" : "",
+      col.sub ? "grp-sub" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  };
 
   async function download(date: string) {
     setBusy(date);
@@ -1135,6 +1227,34 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
     } finally {
       setBusy(null);
     }
+  }
+
+  function changeCell(col: SnapCol, row: SnapshotRow) {
+    const c = changes.get(row.snapshotDate);
+    if (col.key === "diff") {
+      if (!c) return <span className="muted" title="比べる前の記録がありません">—</span>;
+      const lines = [
+        c.complete ? `入庫 +${yen(c.inValue)}（入庫一括 ${yen(c.received)}・返品や棚卸 ${yen(c.adjusted)}）` : "入庫・出荷：金額を記録する前の期間を含むため不明",
+        c.complete ? `出荷 −${yen(c.outValue)}` : "",
+        c.complete && Math.round(c.opening) !== 0 ? `導入前在庫の登録 +${yen(c.opening)}` : "",
+        c.complete && Math.abs(c.other) >= 1 ? `その他（原価の置き換えなど） ${c.other >= 0 ? "+" : "−"}${yen(Math.abs(c.other))}` : "",
+      ].filter(Boolean);
+      return (
+        <span className={c.diff > 0 ? "chg-up" : c.diff < 0 ? "chg-down" : "muted"} title={lines.join("\n")}>
+          {c.diff > 0 ? "+" : c.diff < 0 ? "−" : "±"}
+          {yen(Math.abs(c.diff))}
+        </span>
+      );
+    }
+    if (!c || !c.complete) return <span className="muted" title={c ? "金額を記録する前の期間を含むため不明" : undefined}>—</span>;
+    const v = col.key === "in" ? c.inValue : c.outValue;
+    if (Math.round(v) === 0) return <span className="muted">—</span>;
+    return (
+      <span title={col.key === "in" ? `入庫一括 ${yen(c.received)}・返品や棚卸 ${yen(c.adjusted)}` : "先入先出の原価"}>
+        {col.key === "in" ? "+" : "−"}
+        {yen(v)}
+      </span>
+    );
   }
 
   return (
@@ -1185,7 +1305,7 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
         </div>
       ) : (
       <div className="tbl-wrap">
-        <table className="tbl tbl--resizable" style={{ minWidth: snapshotFixedWidth + 110 }}>
+        <table className="tbl tbl--resizable tbl--snap" style={{ minWidth: snapshotFixedWidth + 110 }}>
           <colgroup>
             {snapshotColumns.map((col) => (
               <col key={col.key} style={{ width: snapshotWidths.widthOf(col.key) }} />
@@ -1195,7 +1315,8 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
           <thead>
             <tr>
               {snapshotColumns.map((col) => (
-                <th key={col.key} className={col.num ? "num" : undefined}>
+                <th key={col.key} className={[col.num ? "num" : "", groupClass(col)].filter(Boolean).join(" ")}>
+                  {col.store && <span className={`store-dot th-dot tone-${storeTone(col.store, stores)}`} aria-hidden="true" />}
                   {col.label}
                   <ColResizer
                     label={col.label}
@@ -1210,25 +1331,44 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7 + stores.length} className="month-empty">表示する月を選んでください</td>
+                <td colSpan={snapshotColumns.length + 1} className="month-empty">表示する月を選んでください</td>
               </tr>
             )}
             {rows.map((row) => (
               <tr key={row.snapshotDate}>
-                <td className="code">{dateOnly(row.snapshotDate)}</td>
-                <td className="muted" title={dateTime(row.takenAt)}>{timeOnly(row.takenAt)}</td>
-                <td className="num strong">{yen(row.totalValueJpy)}</td>
-                {stores.map((store) => {
-                  const t = row.byStore[store];
-                  return (
-                    <td key={store} className="num" title={t ? `${count(t.q)}個・${count(t.n)}商品` : "この日は店舗別の内訳がありません"}>
-                      {t ? yen(t.v) : <span className="muted">—</span>}
-                    </td>
-                  );
+                {snapshotColumns.map((col) => {
+                  const cls = [col.num ? "num" : "", groupClass(col)];
+                  switch (col.key) {
+                    case "date":
+                      return <td key={col.key} className="code">{dateOnly(row.snapshotDate)}</td>;
+                    case "time":
+                      return <td key={col.key} className="muted" title={dateTime(row.takenAt)}>{timeOnly(row.takenAt)}</td>;
+                    case "value":
+                      return <td key={col.key} className={[...cls, "strong"].join(" ")}>{yen(row.totalValueJpy)}</td>;
+                    case "diff":
+                    case "in":
+                    case "out":
+                      return <td key={col.key} className={cls.join(" ")}>{changeCell(col, row)}</td>;
+                    case "qty":
+                      return <td key={col.key} className="num">{count(row.totalQty)}</td>;
+                    case "products":
+                      return <td key={col.key} className="num">{count(row.productCount)}</td>;
+                    case "source":
+                      return (
+                        <td key={col.key}>
+                          {row.source === "cron" ? <span className="status success">自動</span> : <span className="status monitoring">手動</span>}
+                        </td>
+                      );
+                    default: {
+                      const t = col.store ? row.byStore[col.store] : undefined;
+                      return (
+                        <td key={col.key} className={cls.join(" ")} title={t ? `${count(t.q)}個・${count(t.n)}商品` : "この日は店舗別の内訳がありません"}>
+                          {t ? yen(t.v) : <span className="muted">—</span>}
+                        </td>
+                      );
+                    }
+                  }
                 })}
-                <td className="num">{count(row.totalQty)}</td>
-                <td className="num">{count(row.productCount)}</td>
-                <td>{row.source === "cron" ? <span className="status success">自動</span> : <span className="status monitoring">手動</span>}</td>
                 <td className="num">
                   <button type="button" className="text-btn" onClick={() => download(row.snapshotDate)} disabled={busy !== null}>
                     {busy === row.snapshotDate ? "作成中…" : "商品別CSV"}

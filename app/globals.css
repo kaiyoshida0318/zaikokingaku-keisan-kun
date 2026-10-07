@@ -482,3 +482,15 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
   .modal-backdrop { padding: 12px; }
 }
 .trend-tip-row .store-dot { grid-area: auto; }
+
+/* 在庫推移(表)：金額のまとまり（在庫金額＋店舗）と、その動き（前日比＋入庫・出荷）を薄い背景でまとめる */
+.tbl--snap .grp--value { background: #fffbf8; }
+.tbl--snap th.grp--value { background: #fbf4ee; }
+.tbl--snap .grp--move { background: #f9fafb; }
+.tbl--snap th.grp--move { background: #f1f2f4; }
+.tbl--snap .grp-start { box-shadow: inset 1px 0 0 var(--border-light); }
+.tbl--snap .grp-end { box-shadow: inset -1px 0 0 var(--border-light); }
+.tbl--snap td.grp-sub { color: var(--muted); }
+.tbl--snap th .th-dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 5px; vertical-align: 1px; }
+.chg-up { color: #047857; font-weight: 600; }
+.chg-down { color: #b91c1c; font-weight: 600; }
