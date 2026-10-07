@@ -41,7 +41,7 @@ export default function SyncModal(props: {
         <span className="refresh-action-body">
           <span className="refresh-action-title">NEと照合する</span>
           <span className="refresh-action-desc">
-            NEの在庫数と比べて、減った分を<b>古い便から消費</b>し、今日の在庫金額を「在庫推移(表)」に保存します。毎日 03:20 にも自動で実行されます。
+            NEの在庫数と比べて、減った分を<b>古い便から消費</b>し、今日の在庫金額を「在庫推移(表)」に保存します。毎日 21:05 にも自動で実行されます。
           </span>
           <label className="check">
             <input
@@ -135,12 +135,12 @@ export default function SyncModal(props: {
             <tr className="group"><td colSpan={3}>照合で変わるもの</td></tr>
             <tr>
               <td>各便の残り（古い便から消費）</td>
-              <td><span className="tag tag-auto">毎日 3:20</span><span className="tag tag-btn">NEと照合する</span></td>
+              <td><span className="tag tag-auto">毎日 21:05</span><span className="tag tag-btn">NEと照合する</span></td>
               <td>NEの在庫数が便の残りより少なければ、その差を古い便から減らします。多いとき（返品・棚卸増など）は「在庫増の調整」として最新の原価で足します。</td>
             </tr>
             <tr>
               <td>在庫推移(表)</td>
-              <td><span className="tag tag-auto">毎日 3:20</span><span className="tag tag-btn">NEと照合する</span></td>
+              <td><span className="tag tag-auto">毎日 21:05</span><span className="tag tag-btn">NEと照合する</span></td>
               <td>1日1件。同じ日に何度照合しても最後の結果で上書きされます。月末の棚卸金額の控えに使えます。</td>
             </tr>
             <tr>

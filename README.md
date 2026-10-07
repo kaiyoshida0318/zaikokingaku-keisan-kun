@@ -9,7 +9,7 @@
 ## できること
 
 - **在庫金額の合計・在庫数・商品数・前月末との差**
-- **NEと照合**：NEの在庫数と比べて、減った分を古い便から消費し、今日の在庫金額を記録（毎日 03:20 JST にも自動実行）
+- **NEと照合**：NEの在庫数と比べて、減った分を古い便から消費し、今日の在庫金額を記録（毎日 21:05 JST にも自動実行）
   - 初回だけ「便のない商品も導入前在庫として登録」にチェックすると、便のない商品をNEの在庫数・原価で「導入前在庫」（アプリ導入前からあった在庫）として登録します。導入前在庫の登録日は 2000-01-01 に固定され、便より古い扱いになります
 - **商品別**：検索・絞り込み・並べ替え・CSV出力。行をクリックすると便ごとの残り・原価の内訳
 - **便別**：配送依頼書ごとの合計原価・国際送料・残り
@@ -21,7 +21,7 @@
 | 場所 | 役割 |
 | --- | --- |
 | 入庫一括 | NE更新のときに便ごとの原価を `cost_lots` に登録 |
-| ne-sync-worker `POST /api/cost/reconcile` | NE在庫で照合（`cost_reconcile_stock`）→ 今日の記録（`cost_take_snapshot`）。Cron `20 18 * * *` で毎日実行 |
+| ne-sync-worker `POST /api/cost/reconcile` | NE在庫で照合（`cost_reconcile_stock`）→ 今日の記録（`cost_take_snapshot`）。Cron `5 12 * * *`（21:05 JST） で毎日実行 |
 | Supabase | `cost_lots`・`cost_shipments`・`cost_inventory_snapshots`・`cost_stock_log` と集計ビュー |
 | このアプリ | 表示と「NEと照合」ボタン |
 

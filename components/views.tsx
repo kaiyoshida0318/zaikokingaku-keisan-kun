@@ -43,7 +43,7 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
     return (
       <div className="panel trend">
         <div className="panel-head"><h2>📈 在庫金額の推移</h2></div>
-        <p className="panel-empty">照合が2日分以上たまると表示されます（毎日 03:20 に自動で照合します）。</p>
+        <p className="panel-empty">照合が2日分以上たまると表示されます（毎日 21:05 に自動で照合します）。</p>
       </div>
     );
   }
@@ -958,7 +958,7 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
         <div className="empty-state">
           <div className="empty-icon">📅</div>
           <div className="empty-title">まだ記録がありません</div>
-          <div className="empty-desc">「🔄 照合と更新」で照合するか、毎日 03:20 の自動照合で、その日の在庫金額が保存されます。</div>
+          <div className="empty-desc">「🔄 照合と更新」で照合するか、毎日 21:05 の自動照合で、その日の在庫金額が保存されます。</div>
         </div>
       ) : (
       <div className="tbl-wrap">
