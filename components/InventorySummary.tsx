@@ -70,16 +70,19 @@ export default function InventorySummary({
           <div className="main-title">
             <span className="main-icon" aria-hidden="true">💴</span>
             在庫金額
-            <small>便ごとの原価・先入先出</small>
           </div>
-          <div className="main-asof" title={loadedAt ? `画面の読み込み ${dateTime(loadedAt)}` : undefined}>
+          <div
+            className="main-asof"
+            title={
+              asOf
+                ? `${asOf.label}${asOf.checkAt ? `（最終照合 ${dateTime(asOf.checkAt)}）` : ""}` +
+                  (loadedAt ? `\n画面の読み込み ${dateTime(loadedAt)}` : "")
+                : undefined
+            }
+          >
             {asOf ? (
               <>
                 <b>{dateTime(asOf.at)}</b> 時点
-                <small>
-                  {asOf.label}
-                  {asOf.checkAt && `（最終照合 ${dateTime(asOf.checkAt)}）`}
-                </small>
               </>
             ) : (
               <small>まだ照合していません</small>

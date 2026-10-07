@@ -22,6 +22,7 @@ import {
   downloadBlob,
   rakumartDeliveryUrl,
   shipmentLabel,
+  timeOnly,
   todayJst,
   unitCsv,
   unitYen,
@@ -329,31 +330,31 @@ const productColumns: { key: ProductSortKey; label: string; num?: boolean; first
 const MIN_COL_WIDTH = 60;
 
 /**
- * 列幅をドラッグで変えるためのフック。幅はこのブラウザに保存する。
- * 返す startResize を見出しのつまみの onPointerDown に、reset をダブルクリックに渡す。
+ * 列幅をドラッグで変えるためのフック。変えた幅だけをこのブラウザに保存し、ほかの列は初期の幅。
+ * 列が後から増えても（在庫推移(表)の店舗の列など）そのまま使える。
+ * widthOf(key) で幅、startResize を見出しのつまみの onPointerDown に、reset をダブルクリックに渡す。
  */
-function useColumnWidths<K extends string>(storageKey: string, defaults: Record<K, number>) {
-  const [widths, setWidths] = useState<Record<K, number>>(defaults);
+function useColumnWidths(storageKey: string, defaults: Record<string, number>) {
+  const [saved, setSaved] = useState<Record<string, number>>({});
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? "null") as Partial<Record<K, number>> | null;
-      if (saved) {
-        const merged = { ...defaults };
-        for (const key of Object.keys(defaults) as K[]) {
-          const w = saved[key];
-          if (typeof w === "number" && Number.isFinite(w)) merged[key] = Math.max(MIN_COL_WIDTH, Math.round(w));
+      const raw = JSON.parse(window.localStorage.getItem(storageKey) ?? "null") as Record<string, unknown> | null;
+      if (raw && typeof raw === "object") {
+        const clean: Record<string, number> = {};
+        for (const [key, w] of Object.entries(raw)) {
+          if (typeof w === "number" && Number.isFinite(w)) clean[key] = Math.max(MIN_COL_WIDTH, Math.round(w));
         }
-        setWidths(merged);
+        setSaved(clean);
       }
     } catch {
       // 読めなければ初期の幅のまま
     }
-    // 初回だけ読む
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
-  function save(next: Record<K, number>) {
+  const widthOf = (key: string) => saved[key] ?? defaults[key] ?? 120;
+
+  function persist(next: Record<string, number>) {
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(next));
     } catch {
@@ -361,34 +362,59 @@ function useColumnWidths<K extends string>(storageKey: string, defaults: Record<
     }
   }
 
-  function startResize(key: K, event: React.PointerEvent<HTMLElement>) {
+  function startResize(key: string, event: React.PointerEvent<HTMLElement>) {
     event.preventDefault();
     event.stopPropagation();
     const startX = event.clientX;
-    const startWidth = widths[key];
-    let latest = widths;
+    const startWidth = widthOf(key);
+    let latest = saved;
     document.body.classList.add("is-col-resizing");
     const onMove = (e: PointerEvent) => {
       latest = { ...latest, [key]: Math.max(MIN_COL_WIDTH, Math.round(startWidth + e.clientX - startX)) };
-      setWidths(latest);
+      setSaved(latest);
     };
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       document.body.classList.remove("is-col-resizing");
-      save(latest);
+      persist(latest);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }
 
-  function reset(key: K) {
-    const next = { ...widths, [key]: defaults[key] };
-    setWidths(next);
-    save(next);
+  function reset(key: string) {
+    const next = { ...saved };
+    delete next[key];
+    setSaved(next);
+    persist(next);
   }
 
-  return { widths, startResize, reset };
+  return { widthOf, startResize, reset };
+}
+
+/** 列幅のつまみ（見出しの右端） */
+function ColResizer({
+  label,
+  onStart,
+  onReset,
+}: {
+  label: string;
+  onStart: (event: React.PointerEvent<HTMLElement>) => void;
+  onReset: () => void;
+}) {
+  return (
+    <span
+      className="col-resizer"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`${label}の幅`}
+      title="ドラッグで幅を変更（ダブルクリックで元の幅）"
+      onPointerDown={onStart}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={onReset}
+    />
+  );
 }
 
 // 文字の中の数字は数の大きさで並べる（商品2 → 商品10）
@@ -459,11 +485,11 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
   const [preview, setPreview] = useState<ProductRow | null>(null);
   const columnWidths = useColumnWidths(
     "zaiko_product_col_widths",
-    Object.fromEntries(productColumns.map((col) => [col.key, col.width])) as Record<ProductSortKey, number>,
+    Object.fromEntries(productColumns.map((col) => [col.key, col.width])),
   );
   // 最後の列（状態）以外の幅の合計。画面より広くなったら横にスクロールする
   const fixedWidth =
-    IMAGE_COL_WIDTH + productColumns.slice(0, -1).reduce((sum, col) => sum + columnWidths.widths[col.key], 0);
+    IMAGE_COL_WIDTH + productColumns.slice(0, -1).reduce((sum, col) => sum + columnWidths.widthOf(col.key), 0);
   const [sort, setSort] = useState<{ key: ProductSortKey; dir: SortDir }>({ key: "value", dir: "desc" });
 
   function toggleSort(key: ProductSortKey) {
@@ -610,7 +636,7 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
                   {productColumns.map((col, i) => (
                     <col
                       key={col.key}
-                      style={i === productColumns.length - 1 ? undefined : { width: columnWidths.widths[col.key] }}
+                      style={i === productColumns.length - 1 ? undefined : { width: columnWidths.widthOf(col.key) }}
                     />
                   ))}
                 </colgroup>
@@ -638,15 +664,10 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
                             </span>
                           </button>
                           {!isLast && (
-                            <span
-                              className="col-resizer"
-                              role="separator"
-                              aria-orientation="vertical"
-                              aria-label={`${col.label}の幅`}
-                              title="ドラッグで幅を変更（ダブルクリックで元の幅）"
-                              onPointerDown={(event) => columnWidths.startResize(col.key, event)}
-                              onClick={(event) => event.stopPropagation()}
-                              onDoubleClick={() => columnWidths.reset(col.key)}
+                            <ColResizer
+                              label={col.label}
+                              onStart={(event) => columnWidths.startResize(col.key, event)}
+                              onReset={() => columnWidths.reset(col.key)}
                             />
                           )}
                         </th>
@@ -1081,6 +1102,22 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
     );
   }
 
+  // 列（店舗の列は記録に出てくる店舗の数だけ）。最後の「商品別CSV」の列は残りの幅を使う
+  const snapshotColumns: Array<{ key: string; label: string; num?: boolean; width: number }> = [
+    { key: "date", label: "日付", width: 120 },
+    { key: "time", label: "記録時刻", width: 90 },
+    { key: "value", label: "在庫金額", num: true, width: 140 },
+    ...stores.map((store) => ({ key: `store:${store}`, label: store, num: true, width: 140 })),
+    { key: "qty", label: "在庫数", num: true, width: 110 },
+    { key: "products", label: "商品数", num: true, width: 90 },
+    { key: "source", label: "照合", width: 80 },
+  ];
+  const snapshotWidths = useColumnWidths(
+    "zaiko_snapshot_col_widths",
+    Object.fromEntries(snapshotColumns.map((col) => [col.key, col.width])),
+  );
+  const snapshotFixedWidth = snapshotColumns.reduce((sum, col) => sum + snapshotWidths.widthOf(col.key), 0);
+
   async function download(date: string) {
     setBusy(date);
     setError(null);
@@ -1148,18 +1185,25 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
         </div>
       ) : (
       <div className="tbl-wrap">
-        <table className="tbl">
+        <table className="tbl tbl--resizable" style={{ minWidth: snapshotFixedWidth + 110 }}>
+          <colgroup>
+            {snapshotColumns.map((col) => (
+              <col key={col.key} style={{ width: snapshotWidths.widthOf(col.key) }} />
+            ))}
+            <col />
+          </colgroup>
           <thead>
             <tr>
-              <th>日付</th>
-              <th>記録時刻</th>
-              <th className="num">在庫金額</th>
-              {stores.map((store) => (
-                <th key={store} className="num">{store}</th>
+              {snapshotColumns.map((col) => (
+                <th key={col.key} className={col.num ? "num" : undefined}>
+                  {col.label}
+                  <ColResizer
+                    label={col.label}
+                    onStart={(event) => snapshotWidths.startResize(col.key, event)}
+                    onReset={() => snapshotWidths.reset(col.key)}
+                  />
+                </th>
               ))}
-              <th className="num">在庫数</th>
-              <th className="num">商品数</th>
-              <th>照合</th>
               <th />
             </tr>
           </thead>
@@ -1172,7 +1216,7 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
             {rows.map((row) => (
               <tr key={row.snapshotDate}>
                 <td className="code">{dateOnly(row.snapshotDate)}</td>
-                <td className="muted">{dateTime(row.takenAt)}</td>
+                <td className="muted" title={dateTime(row.takenAt)}>{timeOnly(row.takenAt)}</td>
                 <td className="num strong">{yen(row.totalValueJpy)}</td>
                 {stores.map((store) => {
                   const t = row.byStore[store];

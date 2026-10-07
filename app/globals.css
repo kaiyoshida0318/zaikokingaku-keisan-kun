@@ -378,7 +378,6 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 .banner--page { margin: 16px 20px 0; }
 .form-error { display: block; margin-top: 8px; color: #b91c1c; font-size: 12px; }
 .form-ok { display: block; margin-top: 8px; color: #065f46; font-size: 12px; font-weight: 600; }
-.footer { max-width: 1600px; margin: 0 auto; padding: 0 20px 32px; color: var(--light); font-size: 11px; }
 
 /* ---------- modal ---------- */
 .modal-backdrop {

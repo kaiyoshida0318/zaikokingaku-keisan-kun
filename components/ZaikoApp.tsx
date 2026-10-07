@@ -254,9 +254,6 @@ export default function ZaikoApp() {
         </>
       )}
 
-      <footer className="footer">
-        在庫金額 = 各便の残り × その便の1単位原価（単価＋オプション＋中国内運賃＋国際送料）。出荷はNEの在庫数の減少として、古い便から消費します。
-      </footer>
 
       {settingsOpen && (
         <SettingsPanel

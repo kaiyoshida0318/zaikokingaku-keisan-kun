@@ -86,6 +86,14 @@ export function dateTime(value: string | null | undefined): string {
   });
 }
 
+/** 時刻だけ（日本時間の 21:05） */
+export function timeOnly(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" });
+}
+
 export function dateOnly(value: string | null | undefined): string {
   if (!value) return "—";
   const date = new Date(value);
