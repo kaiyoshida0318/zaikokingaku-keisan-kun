@@ -104,12 +104,19 @@ a { color: var(--primary-dark); }
 .content { padding: 20px; max-width: 1600px; margin: auto; display: grid; gap: 16px; }
 .metric-grid { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(220px, 1fr); gap: 16px; align-items: stretch; }
 /* 右の1枚：商品コード数・総在庫数・平均原価（店舗別の内訳つき） */
-.metric-card.metric-side { display: grid; align-content: stretch; gap: 0; padding: 6px 18px; }
-.side-row { display: grid; gap: 2px; padding: 12px 0; border-top: 1px solid var(--border-light); align-content: center; }
+.metric-card.metric-side { display: grid; align-content: stretch; gap: 0; padding: 4px 18px; }
+/* 左に「ラベル＋数字」、右に店舗別の内訳を縦に並べて、1項目の高さを抑える */
+.side-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "label stores" "value stores";
+  column-gap: 14px; row-gap: 1px; align-items: center; padding: 9px 0; border-top: 1px solid var(--border-light);
+}
+.side-label { grid-area: label; }
+.side-value { grid-area: value; }
+.side-stores { grid-area: stores; }
 .side-row:first-child { border-top: 0; }
 .side-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
 .side-value { font-size: 24px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.side-stores { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 11px; color: var(--muted); }
+.side-stores { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 11px; color: var(--muted); min-width: 0; }
 .side-store { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .side-store .store-dot { width: 8px; height: 8px; border-radius: 2px; }
 .side-store b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -147,18 +154,20 @@ a { color: var(--primary-dark); }
 }
 .store-stack { display: flex; gap: 2px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--border-light); }
 .store-stack-seg { display: block; min-width: 3px; }
-.store-rows { list-style: none; display: grid; gap: 2px; }
+/* 店舗別：横に並べて縦幅を節約（1店舗＝ 名前・割合 / 金額 / 個数・商品数 の3段） */
+.store-rows { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); row-gap: 8px; }
 .store-rows li {
-  display: grid; grid-template-columns: 10px minmax(70px, 1fr) auto 56px minmax(120px, auto);
-  align-items: center; column-gap: 10px; padding: 6px 2px; border-top: 1px solid var(--border-light);
-  font-variant-numeric: tabular-nums;
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) auto;
+  grid-template-areas: "dot name share" ". value value" ". meta meta";
+  column-gap: 6px; row-gap: 1px; align-items: center; padding: 0 14px; border-left: 1px solid var(--border-light);
+  font-variant-numeric: tabular-nums; min-width: 0;
 }
-.store-rows li:first-child { border-top: 0; }
-.store-dot { width: 10px; height: 10px; border-radius: 3px; }
-.store-row-name { font-size: 13px; font-weight: 700; }
-.store-row-value { font-size: 16px; font-weight: 700; text-align: right; white-space: nowrap; }
-.store-row-share { font-size: 12px; color: var(--muted); text-align: right; }
-.store-row-meta { font-size: 11px; color: var(--light); text-align: right; white-space: nowrap; }
+.store-rows li:first-child { border-left: 0; padding-left: 0; }
+.store-dot { grid-area: dot; width: 10px; height: 10px; border-radius: 3px; }
+.store-row-name { grid-area: name; font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.store-row-share { grid-area: share; font-size: 11px; color: var(--muted); }
+.store-row-value { grid-area: value; font-size: 17px; font-weight: 700; white-space: nowrap; line-height: 1.25; }
+.store-row-meta { grid-area: meta; font-size: 11px; color: var(--light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 店舗の色（商品一覧のバッジと同じ並び） */
 .tone-s0 { background: var(--primary); }
 .tone-s1 { background: var(--blue); }
@@ -412,8 +421,8 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
   .metric-value { font-size: 22px; }
   .main-value { font-size: 40px; }
   .main-asof { text-align: left; }
-  .store-rows li { grid-template-columns: 10px minmax(60px, 1fr) auto 48px; }
-  .store-row-meta { grid-column: 2 / -1; text-align: left; }
+  .store-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; row-gap: 10px; }
+  .store-rows li { border-left: 0; padding: 0; }
   .metric-card.metric-side { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .metric-card.metric-side .side-row { border-top: 1px solid var(--border-light); }
   .metric-card.metric-side .side-row:first-child { border-top: 0; }
