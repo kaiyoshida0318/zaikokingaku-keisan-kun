@@ -103,7 +103,7 @@ export default function InventorySummary({
               {totals.stores.map((t) => (
                 <li key={t.store}>
                   <span className={`store-dot tone-${storeTone(t.store, totals.colorOrder)}`} aria-hidden="true" />
-                  <span className="store-row-name">{t.store}</span>
+                  <span className="store-row-name" title={t.store}>{t.store}</span>
                   <span className="store-row-value">{yen(t.v)}</span>
                   <span className="store-row-share">
                     {totals.value > 0 ? ((t.v / totals.value) * 100).toFixed(1) : "0.0"}%

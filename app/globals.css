@@ -105,18 +105,18 @@ a { color: var(--primary-dark); }
 .metric-grid { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(220px, 1fr); gap: 16px; align-items: stretch; }
 /* 右の1枚：商品コード数・総在庫数・平均原価（店舗別の内訳つき） */
 .metric-card.metric-side { display: grid; align-content: stretch; gap: 0; padding: 4px 18px; }
-/* 左に「ラベル＋数字」、右に店舗別の内訳を縦に並べて、1項目の高さを抑える */
+/* 1項目＝「ラベル｜数字｜店舗別（縦2行）」の1行にして、カード全体の高さを抑える */
 .side-row {
-  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "label stores" "value stores";
-  column-gap: 14px; row-gap: 1px; align-items: center; padding: 9px 0; border-top: 1px solid var(--border-light);
+  display: grid; grid-template-columns: 92px auto minmax(0, 1fr); grid-template-areas: "label value stores";
+  column-gap: 12px; align-items: center; padding: 7px 0; border-top: 1px solid var(--border-light);
 }
 .side-label { grid-area: label; }
 .side-value { grid-area: value; }
 .side-stores { grid-area: stores; }
 .side-row:first-child { border-top: 0; }
 .side-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
-.side-value { font-size: 24px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.side-stores { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 11px; color: var(--muted); min-width: 0; }
+.side-value { font-size: 22px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.side-stores { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 11px; line-height: 1.35; color: var(--muted); min-width: 0; }
 .side-store { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .side-store .store-dot { width: 8px; height: 8px; border-radius: 2px; }
 .side-store b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -134,11 +134,19 @@ a { color: var(--primary-dark); }
 .metric-value { font-size: 28px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* メインの在庫金額カード（店舗別の内訳つき） */
+/* 左：タイトル・金額・割合の棒／右：店舗別／右上：いつ時点、の2列でコンパクトに */
 .metric-card--main {
-  display: grid; gap: 10px; align-items: start; padding: 18px 20px;
+  display: grid; grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-areas: "title asof" "value stores" "stack stores";
+  column-gap: 32px; row-gap: 6px; align-items: center; padding: 14px 20px 16px;
   border-color: #fbc8b3; background: linear-gradient(180deg, #fffaf7 0%, #fff 60%);
 }
-.main-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.main-head { display: contents; }
+.main-title { grid-area: title; }
+.main-asof { grid-area: asof; justify-self: end; align-self: start; }
+.metric-card--main .main-value { grid-area: value; }
+.metric-card--main .store-stack { grid-area: stack; align-self: start; }
+.metric-card--main .store-rows { grid-area: stores; align-self: center; }
 .main-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
 .main-title small { font-size: 11px; font-weight: 400; color: var(--muted); }
 .main-icon {
@@ -149,7 +157,7 @@ a { color: var(--primary-dark); }
 .main-asof b { color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
 .main-asof small { display: block; font-size: 11px; color: var(--light); }
 .main-value {
-  font-size: 56px; font-weight: 700; line-height: 1.05; color: var(--primary-dark);
+  font-size: 52px; font-weight: 700; line-height: 1.05; color: var(--primary-dark);
   font-variant-numeric: tabular-nums; letter-spacing: -.01em; white-space: nowrap;
 }
 .store-stack { display: flex; gap: 2px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--border-light); }
@@ -420,7 +428,10 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
   .content { padding: 12px; }
   .metric-value { font-size: 22px; }
   .main-value { font-size: 40px; }
-  .main-asof { text-align: left; }
+  .metric-card--main {
+    grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "asof" "value" "stack" "stores"; row-gap: 8px;
+  }
+  .main-asof { text-align: left; justify-self: start; }
   .store-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px; row-gap: 10px; }
   .store-rows li { border-left: 0; padding: 0; }
   .metric-card.metric-side { grid-template-columns: minmax(0, 1fr); gap: 0; }
