@@ -120,7 +120,7 @@ export default function InventorySummary({
       <section className="metric-card metric-side" aria-label="商品コード数・総在庫数・平均原価">
         {(
           [
-            ["🏷", "商品コード数", count(totals.products), (t: StoreTotal) => count(t.n)],
+            ["\u{1F3F7}\uFE0F", "商品コード数", count(totals.products), (t: StoreTotal) => count(t.n)],
             ["📦", "総在庫数", count(totals.qty), (t: StoreTotal) => count(t.q)],
             [
               "💹",

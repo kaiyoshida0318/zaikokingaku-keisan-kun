@@ -109,7 +109,7 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
   );
 }
 
-/** 在庫の推移タブ */
+/** 在庫推移(グラフ)タブ */
 export function TrendView({ snapshots, top }: { snapshots: SnapshotRow[]; top: ReactNode }) {
   return (
     <main className="content">
@@ -838,18 +838,34 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [monthEndOnly, setMonthEndOnly] = useState(false);
+  // 表示する月（yyyy-mm）。null はすべての月
+  const [pickedMonths, setPickedMonths] = useState<Set<string> | null>(null);
+
+  // 記録がある月（新しい順）
+  const months = useMemo(() => [...new Set(snapshots.map((row) => row.snapshotDate.slice(0, 7)))], [snapshots]);
+  const isPicked = (month: string) => pickedMonths === null || pickedMonths.has(month);
+
+  function toggleMonth(month: string) {
+    setPickedMonths((current) => {
+      const next = new Set(current ?? months);
+      if (next.has(month)) next.delete(month);
+      else next.add(month);
+      return next.size === months.length ? null : next;
+    });
+  }
 
   const rows = useMemo(() => {
-    if (!monthEndOnly) return snapshots;
-    // 各月の最後の日付だけ
+    const inMonths = snapshots.filter((row) => pickedMonths === null || pickedMonths.has(row.snapshotDate.slice(0, 7)));
+    if (!monthEndOnly) return inMonths;
+    // 月別：各月の最後の日付（月末時点）だけ
     const seen = new Set<string>();
-    return snapshots.filter((row) => {
+    return inMonths.filter((row) => {
       const month = row.snapshotDate.slice(0, 7);
       if (seen.has(month)) return false;
       seen.add(month);
       return true;
     });
-  }, [snapshots, monthEndOnly]);
+  }, [snapshots, monthEndOnly, pickedMonths]);
 
   // 記録に出てくる店舗（店舗に対応する前の記録には内訳がない）
   const stores = useMemo(() => {
@@ -875,7 +891,7 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
           row.needsReviewCount,
         ]),
       ),
-      `在庫金額_${monthEndOnly ? "月末" : "日ごと"}_${todayJst()}.csv`,
+      `在庫推移_${monthEndOnly ? "月別" : "日別"}_${todayJst()}.csv`,
     );
   }
 
@@ -905,13 +921,13 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
         {error && <p className="form-error">{error}</p>}
         <div className="panel">
           <div className="panel-toolbar">
-            <h2>📅 日ごとの記録</h2>
+            <h2>📅 在庫推移(表)</h2>
             <div className="seg" role="group" aria-label="表示">
               <button type="button" className={!monthEndOnly ? "active" : ""} onClick={() => setMonthEndOnly(false)}>
-                毎日
+                日別
               </button>
               <button type="button" className={monthEndOnly ? "active" : ""} onClick={() => setMonthEndOnly(true)}>
-                月ごとの最終日
+                月別(月末時)
               </button>
             </div>
             <p className="toolbar-note">1日1件。同じ日に何度照合しても最後の結果で上書きされます。</p>
@@ -921,6 +937,23 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
               ⤓ 一覧CSV
             </button>
           </div>
+          {months.length > 0 && (
+            <div className="month-filter">
+              <span className="month-filter-label">表示する月</span>
+              {months.map((month) => (
+                <label key={month} className={`month-chip ${isPicked(month) ? "is-on" : ""}`}>
+                  <input type="checkbox" checked={isPicked(month)} onChange={() => toggleMonth(month)} />
+                  {month.replace("-", "/")}
+                </label>
+              ))}
+              <button type="button" className="text-btn" onClick={() => setPickedMonths(null)} disabled={pickedMonths === null}>
+                すべて
+              </button>
+              <button type="button" className="text-btn" onClick={() => setPickedMonths(new Set())} disabled={pickedMonths?.size === 0}>
+                すべて外す
+              </button>
+            </div>
+          )}
       {snapshots.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📅</div>
@@ -946,6 +979,11 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
             </tr>
           </thead>
           <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={8 + stores.length} className="month-empty">表示する月を選んでください</td>
+              </tr>
+            )}
             {rows.map((row) => (
               <tr key={row.snapshotDate}>
                 <td className="code">{dateOnly(row.snapshotDate)}</td>
