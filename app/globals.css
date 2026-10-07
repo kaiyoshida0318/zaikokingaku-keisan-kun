@@ -213,13 +213,33 @@ a { color: var(--primary-dark); }
 .month-chip.is-on { border-color: #fbc8b3; background: var(--primary-light); color: var(--primary-dark); font-weight: 600; }
 .tbl td.month-empty { text-align: center; color: var(--light); padding: 28px; }
 
-.trend-body { padding: 8px 16px 12px; }
-.trend-svg { display: block; width: 100%; height: 150px; cursor: crosshair; }
-.trend--tall .trend-svg { height: calc(100vh - 520px); min-height: 220px; }
-.trend-line { fill: none; stroke: var(--primary); stroke-width: 2.5; stroke-linejoin: round; }
-.trend-area { fill: var(--primary-light); }
-.trend-cursor { stroke: var(--border); stroke-width: 1; }
-.trend-axis { display: flex; justify-content: space-between; color: var(--light); font-size: 11px; }
+.trend-head { flex-wrap: wrap; }
+.trend-head .seg { margin-left: auto; }
+.trend-body { position: relative; padding: 8px 0 0; }
+.trend-svg { display: block; }
+.trend-grid { stroke: var(--border-light); stroke-width: 1; }
+.trend-axis-line { stroke: var(--border); stroke-width: 1; }
+.trend-tick { fill: var(--light); font-size: 11px; font-variant-numeric: tabular-nums; }
+.trend-line { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.trend-area { fill: var(--primary); fill-opacity: .08; }
+.trend-dot { fill: var(--primary); stroke: #fff; stroke-width: 2; }
+.trend-cursor { stroke: var(--muted); stroke-width: 1; }
+.trend-hit { fill: transparent; cursor: crosshair; }
+.trend-tip {
+  position: absolute; pointer-events: none; min-width: 170px; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: 10px; background: #fff; box-shadow: var(--shadow-lg); font-size: 12px; z-index: 2;
+}
+.trend-tip-date { color: var(--muted); font-size: 11px; }
+.trend-tip-total { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.trend-tip-row { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 6px; color: var(--muted); }
+.trend-tip-row b { color: var(--text); font-variant-numeric: tabular-nums; }
+.trend-tip-meta { margin-top: 4px; color: var(--light); font-size: 11px; }
+.trend-foot {
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 4px 16px 12px;
+  color: var(--light); font-size: 11px;
+}
+.trend-foot b { color: var(--text); font-size: 13px; }
+.trend-diff { margin-left: 4px; }
 
 /* ---------- 店舗 ---------- */
 .store-select { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--light); white-space: nowrap; }
@@ -462,3 +482,4 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
   .refresh-table th.when, .refresh-table td:first-child { width: auto; }
   .modal-backdrop { padding: 12px; }
 }
+.trend-tip-row .store-dot { grid-area: auto; }
