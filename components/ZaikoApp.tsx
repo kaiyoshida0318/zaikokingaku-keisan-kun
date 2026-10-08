@@ -25,6 +25,7 @@ import {
   yen,
 } from "@/lib/format";
 import { getSupabaseConfigError, NE_SYNC_WORKER_URL, supabase, ZAIKO_AUTH_STORAGE_KEY } from "@/lib/supabaseClient";
+import { APP_BUILT_AT, APP_COMMIT, APP_VERSION, fetchNewerVersion, type PublishedVersion } from "@/lib/version";
 import BrandMark from "./BrandMark";
 import SettingsPanel from "./SettingsPanel";
 import SyncModal from "./SyncModal";
@@ -61,6 +62,19 @@ export default function ZaikoApp() {
     const saved = loadCostRounding();
     setCostRounding(saved, false);
     setRounding(saved);
+  }, []);
+  // 公開中のバージョンが、開いている画面より新しいか（開いたとき・タブに戻ったときに確かめる）
+  const [newer, setNewer] = useState<PublishedVersion | null>(null);
+  useEffect(() => {
+    let lastCheck = 0;
+    const check = () => {
+      if (document.visibilityState !== "visible" || Date.now() - lastCheck < 60_000) return;
+      lastCheck = Date.now();
+      void fetchNewerVersion().then((v) => v && setNewer(v));
+    };
+    check();
+    document.addEventListener("visibilitychange", check);
+    return () => document.removeEventListener("visibilitychange", check);
   }, []);
   function changeRounding(next: CostRounding) {
     setCostRounding(next);
@@ -189,7 +203,19 @@ export default function ZaikoApp() {
       <header className="app-header">
         <div className="brand-group">
           <BrandMark />
-          <span className="app-version">v0.1.0</span>
+          <span
+            className="app-version"
+            title={[
+              `バージョン ${APP_VERSION}`,
+              APP_BUILT_AT && `ビルド ${dateTime(APP_BUILT_AT)}`,
+              APP_COMMIT && `コミット ${APP_COMMIT}`,
+            ]
+              .filter(Boolean)
+              .join("\n")}
+          >
+            v{APP_VERSION}
+            {APP_BUILT_AT && <small>{dateTime(APP_BUILT_AT)}</small>}
+          </span>
         </div>
         <div className="header-spacer" />
         <div className="header-actions">
@@ -225,6 +251,14 @@ export default function ZaikoApp() {
         ))}
       </nav>
 
+      {newer && (
+        <div className="banner banner--update banner--page">
+          新しいバージョン v{newer.version} が公開されています（この画面は v{APP_VERSION}）。
+          <button type="button" className="text-btn" onClick={() => window.location.reload()}>
+            再読み込みして更新
+          </button>
+        </div>
+      )}
       {configError && <div className="banner banner--error banner--page">{configError}</div>}
 
       {locked ? (

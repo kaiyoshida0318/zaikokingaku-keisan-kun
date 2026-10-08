@@ -52,7 +52,9 @@ a { color: var(--primary-dark); }
 .app-version {
   font-family: ui-monospace, monospace; font-size: 11px; color: var(--light);
   padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg);
+  white-space: nowrap; cursor: default;
 }
+.app-version small { font-size: 10px; margin-left: 6px; }
 .header-spacer, .toolbar-spacer { flex: 1; }
 .header-actions { display: flex; align-items: center; gap: 8px; }
 .conn-pill { font-size: 11px; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
@@ -377,6 +379,7 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 
 .banner { padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13px; display: flex; align-items: center; gap: 10px; }
 .banner--error { background: var(--red-bg); color: #991b1b; }
+.banner--update { background: #eff6ff; color: #1e40af; }
 .banner--page { margin: 16px 20px 0; }
 .form-error { display: block; margin-top: 8px; color: #b91c1c; font-size: 12px; }
 .form-ok { display: block; margin-top: 8px; color: #065f46; font-size: 12px; font-weight: 600; }
