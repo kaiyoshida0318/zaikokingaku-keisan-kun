@@ -1582,7 +1582,7 @@ const oldCostColumns: { key: OldCostSortKey; label: string; num?: boolean; first
   { key: "abs", label: "影響値（絶対値）", num: true, firstDir: "desc", width: 140 },
 ];
 
-/** 原価の差の向き。1銭（0.01円）未満は「同じ」。表示の丸めで0円に見える差も、上がった・下がったに数える */
+/** 原価の差の向き。1銭（0.01円）未満は「同じ」。表示の丸めで0円に見える差も、増加・減少に数える */
 function diffSign(value: number): -1 | 0 | 1 {
   const r = Math.round(value * 100);
   return r > 0 ? 1 : r < 0 ? -1 : 0;
@@ -1751,6 +1751,18 @@ export function OldCostView({
     });
   }, [base, query, filter, storeFilter, sort]);
 
+  // 一覧に出ている商品の内訳（絞り込み・検索に合わせる）
+  const rowSplit = useMemo(() => {
+    let up = 0;
+    let down = 0;
+    for (const row of rows) {
+      const sign = diffSign(row.diff);
+      if (sign > 0) up += 1;
+      else if (sign < 0) down += 1;
+    }
+    return { up, down, same: rows.length - up - down };
+  }, [rows]);
+
   function exportCsv() {
     downloadBlob(
       csvBlob(
@@ -1814,18 +1826,6 @@ export function OldCostView({
               <small>{pctText(summary.oldAvg > 0 ? avgDiff / summary.oldAvg : null)}</small>
             </div>
           </section>
-          <section className="cmp-card">
-            <h3>対象の商品</h3>
-            <div className="cmp-count">
-              {count(summary.n)}
-              <span>商品</span>
-            </div>
-            <div className="cmp-split">
-              <span><b className="cost-up">▲ {count(summary.up)}</b> 上がった</span>
-              <span><b className="cost-down">▼ {count(summary.down)}</b> 下がった</span>
-              <span><b className="muted">― {count(summary.same)}</b> 同じ</span>
-            </div>
-          </section>
         </div>
         <div className="panel">
           <div className="panel-toolbar">
@@ -1846,8 +1846,8 @@ export function OldCostView({
               {(
                 [
                   ["all", "すべて", summary.n],
-                  ["up", "上がった", summary.up],
-                  ["down", "下がった", summary.down],
+                  ["up", "増加商品", summary.up],
+                  ["down", "減少商品", summary.down],
                 ] as const
               ).map(([key, label, n]) => (
                 <button key={key} type="button" className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>
@@ -1876,7 +1876,14 @@ export function OldCostView({
               </label>
             )}
             <div className="toolbar-spacer" />
-            <span className="result-count">{count(rows.length)}商品</span>
+            <span className="result-count cmp-result">
+              {count(rows.length)}商品
+              <span className="cmp-split">
+                <span><b className="cost-up">▲ {count(rowSplit.up)}</b> 増加商品</span>
+                <span><b className="cost-down">▼ {count(rowSplit.down)}</b> 減少商品</span>
+                <span><b className="muted">― {count(rowSplit.same)}</b> 同じ</span>
+              </span>
+            </span>
             <button type="button" className="btn-add" onClick={exportCsv} disabled={rows.length === 0}>
               ⤓ CSV出力
             </button>

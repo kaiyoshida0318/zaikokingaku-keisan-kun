@@ -512,7 +512,7 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 .chg-down { color: #b91c1c; font-weight: 600; }
 
 /* ---------- 旧原価との比較 ---------- */
-.cmp-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.cmp-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .cmp-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px;
   display: flex; flex-direction: column; gap: 4px; box-shadow: var(--shadow);
@@ -520,7 +520,7 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 .cmp-card h3 { font-size: 14px; margin: 0 0 8px; display: flex; align-items: baseline; gap: 8px; }
 .cmp-card h3 small { font-size: 11px; font-weight: 500; color: var(--light); }
 .cmp-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 2px; font-size: 13px; color: var(--muted); }
-.cmp-line b { font-size: 30px; color: var(--text); font-weight: 400; letter-spacing: -.01em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.cmp-line b { font-size: 30px; color: var(--text); font-weight: 800; letter-spacing: -.01em; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .cmp-line--main { font-size: 13px; color: var(--text); font-weight: 600; }
 .cmp-line--main b { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: -.01em; line-height: 1.15; }
 .cmp-diff {
@@ -529,9 +529,8 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 }
 .cmp-diff b { margin-left: auto; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .cmp-diff small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
-.cmp-count { font-size: 30px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
-.cmp-count span { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 4px; }
-.cmp-split { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.cmp-split { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.cmp-result { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
 .cmp-split b { font-variant-numeric: tabular-nums; }
 .cmp-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
 .cmp-breakdown span {
