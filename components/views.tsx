@@ -1629,7 +1629,6 @@ export function OldCostView({
       }),
     [products, oldCosts],
   );
-  const withOldCost = useMemo(() => products.filter((p) => p.productCodeLc in oldCosts).length, [products, oldCosts]);
 
   // 上の集計（絞り込みに関係なく、対象の商品すべて）
   const summary = useMemo(() => {
@@ -1733,6 +1732,13 @@ export function OldCostView({
     <>
       <main className="content">
         {top}
+        <div className="cmp-scope">
+          <span className="cmp-scope-icon" aria-hidden="true">ⓘ</span>
+          <span>
+            <b>旧原価があり、便の原価も登録されている商品だけ</b>を比べています（{count(summary.n)}商品）。
+            <small>旧原価＝旧原価在庫のメモにある旧NE原価、最新原価＝入庫一括で登録したいちばん新しい便の原価</small>
+          </span>
+        </div>
         <div className="cmp-cards">
           <section className="cmp-card">
             <h3>在庫金額<small>今の在庫数 × 原価</small></h3>
@@ -1755,7 +1761,7 @@ export function OldCostView({
             </div>
           </section>
           <section className="cmp-card">
-            <h3>対象の商品<small>旧原価があり、便の原価も登録済み</small></h3>
+            <h3>対象の商品</h3>
             <div className="cmp-count">
               {count(summary.n)}
               <span>商品</span>
@@ -1765,7 +1771,6 @@ export function OldCostView({
               <span><b className="cost-down">▼ {count(summary.down)}</b> 下がった</span>
               <span><b className="muted">― {count(summary.same)}</b> 同じ</span>
             </div>
-            <small className="cmp-note">旧原価がある {count(withOldCost)}商品のうち、便がまだない {count(withOldCost - summary.n)}商品は含みません</small>
           </section>
         </div>
         <div className="panel">

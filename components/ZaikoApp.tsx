@@ -199,14 +199,15 @@ export default function ZaikoApp() {
     <InventorySummary products={products} snapshots={snapshots} logs={logs} loadedAt={loadedAt} />
   );
 
+  const errorBanner = loadError && (
+    <div className="banner banner--error">
+      {loadError}
+      <button type="button" className="text-btn" onClick={() => void loadAll()}>再読み込み</button>
+    </div>
+  );
   const top = (
     <>
-      {loadError && (
-        <div className="banner banner--error">
-          {loadError}
-          <button type="button" className="text-btn" onClick={() => void loadAll()}>再読み込み</button>
-        </div>
-      )}
+      {errorBanner}
       {metrics}
     </>
   );
@@ -298,7 +299,7 @@ export default function ZaikoApp() {
           {tab === "shipments" && <ShipmentsView shipments={shipments} top={top} />}
           {tab === "snapshots" && <SnapshotsView snapshots={snapshots} period={period} onPeriodChange={setPeriod} top={top} />}
           {tab === "trend" && <TrendView snapshots={snapshots} period={period} onPeriodChange={setPeriod} top={top} />}
-          {tab === "oldcost" && <OldCostView products={products} oldCosts={oldCosts} top={top} />}
+          {tab === "oldcost" && <OldCostView products={products} oldCosts={oldCosts} top={errorBanner} />}
           {tab === "logs" && <LogsView logs={logs} top={top} />}
         </>
       )}
