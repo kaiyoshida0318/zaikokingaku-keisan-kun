@@ -2,6 +2,14 @@
    アクセント色だけロゴのオレンジに合わせている。 */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* 数字だけ幅をそろえるフォント。DM Sans には数字を等幅にする機能（tnum）がないため、
+   形の近い Plus Jakarta Sans の等幅数字（0〜9 だけ・1文字1.3KB）を数字にだけ使う。ライセンスは fonts/OFL.txt */
+@font-face { font-family: "Zaiko Digits"; src: url("./fonts/zaiko-digits-400.woff2") format("woff2"); font-weight: 400; font-display: swap; unicode-range: U+0030-0039; }
+@font-face { font-family: "Zaiko Digits"; src: url("./fonts/zaiko-digits-500.woff2") format("woff2"); font-weight: 500; font-display: swap; unicode-range: U+0030-0039; }
+@font-face { font-family: "Zaiko Digits"; src: url("./fonts/zaiko-digits-600.woff2") format("woff2"); font-weight: 600; font-display: swap; unicode-range: U+0030-0039; }
+@font-face { font-family: "Zaiko Digits"; src: url("./fonts/zaiko-digits-700.woff2") format("woff2"); font-weight: 700; font-display: swap; unicode-range: U+0030-0039; }
+@font-face { font-family: "Zaiko Digits"; src: url("./fonts/zaiko-digits-800.woff2") format("woff2"); font-weight: 800; font-display: swap; unicode-range: U+0030-0039; }
+
 :root {
   --primary: #f05a28;
   --primary-dark: #d94a1b;
@@ -28,7 +36,8 @@
 }
 
 body {
-  font-family: "DM Sans", "Noto Sans JP", sans-serif;
+  font-family: "Zaiko Digits", "DM Sans", "Noto Sans JP", sans-serif;
+  font-variant-numeric: tabular-nums;
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
