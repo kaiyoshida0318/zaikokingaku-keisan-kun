@@ -139,7 +139,7 @@ export default function ZaikoApp() {
     if (reconciling) return;
     if (seedOpening) {
       const ok = window.confirm(
-        "商品DBの全商品と、NEで在庫がある全商品について、便がまだない商品をNEの在庫数・原価で「導入前在庫」（アプリ導入前からあった在庫）として登録します。\n" +
+        "商品DBの全商品と、NEで在庫がある全商品について、便がまだない商品をNEの在庫数・原価で「旧原価在庫」として登録します。\n" +
           "NE APIを商品1000件ごとに3回ほど使います。続けますか？",
       );
       if (!ok) return;

@@ -10,7 +10,7 @@ alter table public.cost_lots
 create index if not exists cost_lots_product_code_lc_idx
   on public.cost_lots (product_code_lc, received_at, id);
 
--- 導入前在庫のメモ用：アプリ導入前のNEの原価（バックアップから import_pre_app_cost.sql で入れる。計算には使わない）
+-- 旧原価在庫のメモ用：旧NE原価（バックアップから import_pre_app_cost.sql で入れる。計算には使わない）
 alter table public.cost_lots add column if not exists pre_app_cost numeric(14, 4);
 
 -- 日次スナップショット（月末の棚卸金額の控え）
@@ -217,7 +217,7 @@ grant execute on function public.cost_take_snapshot(text) to authenticated, serv
 -- 在庫推移(表)の「増減・入庫・出荷」：記録（スナップショット）ごとに、前回の記録からの出入りの金額を照合ログから合計する
 --   received_value = 入庫一括で登録した分（数量 × 便の原価）
 --   adjusted_value = 在庫増の調整（返品・棚卸増など）
---   opening_value  = 導入前在庫の登録
+--   opening_value  = 旧原価在庫の登録
 --   shipped_value  = 古い便から差し引いた分＝出荷（先入先出の原価）
 --   過去の便の原価だけの登録（event = 'backfill'）は実際の入出荷ではないので数えない
 --   金額を記録する前のログが混じる期間は *_complete = false（画面では「—」）

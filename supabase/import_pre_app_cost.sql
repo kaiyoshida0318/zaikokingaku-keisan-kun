@@ -1,9 +1,9 @@
 -- =====================================================================
--- 導入前のNE原価（バックアップCSV）を、導入前在庫にメモとして入れる（何度実行しても同じ結果）
---   ・cost_lots に「導入前の原価」(pre_app_cost) の列を足し、導入前在庫（lot_type = 'opening'）の行にだけ入れます
---   ・すでにある導入前在庫を更新するだけで、新しい商品・在庫は登録しません（CSVにしかない商品は無視）
---   ・在庫金額の計算に使う原価（unit_cost）は変えません。画面のメモ欄に「導入前のNE原価」として表示されます
---   ・入庫一括で便が入って導入前在庫の原価が置き換わっても、この値は残ります
+-- 旧NE原価（バックアップCSV）を、旧原価在庫にメモとして入れる（何度実行しても同じ結果）
+--   ・cost_lots に「旧NE原価」(pre_app_cost) の列を足し、旧原価在庫（lot_type = 'opening'）の行にだけ入れます
+--   ・すでにある旧原価在庫を更新するだけで、新しい商品・在庫は登録しません（CSVにしかない商品は無視）
+--   ・在庫金額の計算に使う原価（unit_cost）は変えません。画面のメモ欄に「旧NE原価」として表示されます
+--   ・入庫一括で便が入って旧原価在庫の原価が置き換わっても、この値は残ります
 -- 元データ：NEの原価バックアップCSV（1181件）
 -- =====================================================================
 
@@ -1203,13 +1203,13 @@ with backup(code, cost) as (
 -- 結果の確認（SQL Editor の下に1行で出ます）
 select
   (select count(*) from backup)                     as csv_rows,              -- CSVの件数
-  (select count(*) from upd)                        as updated_lots,          -- メモを入れた導入前在庫の数
+  (select count(*) from upd)                        as updated_lots,          -- メモを入れた旧原価在庫の数
   (select count(distinct lc) from upd)              as updated_products,      -- その商品数
   (select count(*) from backup b
     where not exists (select 1 from public.cost_lots l
                        where l.lot_type = 'opening' and lower(l.product_code) = lower(b.code)))
-                                                    as csv_only_codes,        -- 導入前在庫がないので何もしなかったCSVの商品
+                                                    as csv_only_codes,        -- 旧原価在庫がないので何もしなかったCSVの商品
   (select count(distinct lower(l.product_code)) from public.cost_lots l
     where l.lot_type = 'opening'
       and not exists (select 1 from backup b where lower(b.code) = lower(l.product_code)))
-                                                    as pre_app_without_csv;   -- CSVにない導入前在庫の商品（メモなし）
+                                                    as pre_app_without_csv;   -- CSVにない旧原価在庫の商品（メモなし）

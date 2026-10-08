@@ -48,9 +48,9 @@ export type LotRow = {
   unitOther: number | null;
   needsReview: boolean;
   note: string | null;
-  /** 行を作った日時（導入前在庫では、NEから在庫数・原価を取ってきた日） */
+  /** 行を作った日時（旧原価在庫では、NEから在庫数・原価を取ってきた日） */
   createdAt: string;
-  /** 導入前在庫のメモ：アプリ導入前のNEの原価（バックアップから。計算には使わない） */
+  /** 旧原価在庫のメモ：旧NE原価（便の原価に置き換える前のNEの原価。バックアップから。計算には使わない） */
   preAppCost: number | null;
   /** 便の配送依頼書レート（1元＝何円）。商品・オプション・国内運賃は「元 × レート」で円にしている。便でない在庫は null */
   rate: number | null;
@@ -90,7 +90,7 @@ export type SnapshotRow = {
 export type SnapshotMovement = {
   receivedValue: number; // 入庫一括で登録した分
   adjustedValue: number; // 在庫増の調整（返品・棚卸増など）
-  openingValue: number; // 導入前在庫の登録
+  openingValue: number; // 旧原価在庫の登録
   shippedValue: number; // 出荷（先入先出の原価）
   complete: boolean; // 金額を記録する前のログが混じっていない
 };

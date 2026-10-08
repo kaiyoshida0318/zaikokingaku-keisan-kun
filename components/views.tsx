@@ -106,9 +106,9 @@ type SnapshotChange = {
   inValue: number; // 入庫（入庫一括＋在庫増の調整）
   received: number;
   adjusted: number;
-  opening: number; // 導入前在庫の登録
+  opening: number; // 旧原価在庫の登録
   outValue: number; // 出荷（先入先出の原価）
-  other: number; // 増減のうち、入庫・出荷・導入前在庫で説明できない分（原価の置き換えなど）
+  other: number; // 増減のうち、入庫・出荷・旧原価在庫で説明できない分（原価の置き換えなど）
   complete: boolean; // 金額を記録する前のログが混じっていない
 };
 
@@ -761,7 +761,7 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
               <div className="empty-title">{products.length === 0 ? "まだ便ごとの在庫がありません" : "条件に合う商品がありません"}</div>
               {products.length === 0 && (
                 <div className="empty-desc">
-                  入庫一括でNE更新すると登録されます。今ある在庫をまとめて登録するには「🔄 照合と更新」で「便のない商品も導入前在庫として登録」を選んで照合してください。
+                  入庫一括でNE更新すると登録されます。今ある在庫をまとめて登録するには「🔄 照合と更新」で「便のない商品も旧原価在庫として登録」を選んで照合してください。
                 </div>
               )}
             </div>
@@ -893,8 +893,8 @@ export function ProductsView({ products, top }: { products: ProductRow[]; top: R
 
 const lotTypeLabel: Record<LotRow["lotType"], string> = {
   shipment: "入庫",
-  // このアプリを使い始める前からあった在庫（NEの在庫数・原価で登録したもの）
-  opening: "導入前在庫",
+  // 便がまだない商品を、NEの在庫数・原価（旧NE原価）で登録した在庫
+  opening: "旧原価在庫",
   adjust: "在庫増の調整",
 };
 
@@ -918,7 +918,7 @@ function LotDetail({ productCodeLc }: { productCodeLc: string }) {
 }
 
 /**
- * 出荷で減る順番（SQL の cost__reconcile と同じ）：導入前在庫 → 登録日の古い順 → id の小さい順。
+ * 出荷で減る順番（SQL の cost__reconcile と同じ）：旧原価在庫 → 登録日の古い順 → id の小さい順。
  * 残りのある在庫だけに 1, 2, 3… を振る。1 が「出荷中」の在庫。
  */
 function consumeOrder(lots: LotRow[]): Map<number, number> {
@@ -937,7 +937,7 @@ function consumeOrder(lots: LotRow[]): Map<number, number> {
 export function LotTable({ lots }: { lots: LotRow[] }) {
   const [showUsed, setShowUsed] = useState(false);
 
-  // 表示は新しい順。導入前在庫はいちばん古い扱い（出荷で最初に減る）なので、登録日に関係なく最後に並べる
+  // 表示は新しい順。旧原価在庫はいちばん古い扱い（出荷で最初に減る）なので、登録日に関係なく最後に並べる
   const ordered = [...lots].sort(
     (a, b) =>
       Number(a.lotType === "opening") - Number(b.lotType === "opening") ||
@@ -1048,9 +1048,9 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
                 <td>{lot.lotType === "shipment" ? <ShipmentCell id={lot.shipmentId} /> : "—"}</td>
                 <td>
                   {lot.lotType === "opening" ? (
-                    <span title="このアプリを使い始める前からあった在庫です">
-                      導入前
-                      {lot.createdAt && <small className="lot-sub">{dateOnly(lot.createdAt)} にNEから取得</small>}
+                    <span title="NEから在庫数・原価を取ってきて登録した日です（並びは便より古い扱いでいちばん下）">
+                      {lot.createdAt ? dateOnly(lot.createdAt) : "—"}
+                      <small className="lot-sub">NEから取得</small>
                     </span>
                   ) : (
                     dateOnly(lot.receivedAt)
@@ -1059,8 +1059,8 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
                 <td className="note">
                   {lot.note ?? ""}
                   {lot.preAppCost !== null && (
-                    <span className="pre-app-cost" title="アプリ導入前のNEの原価（バックアップから）。在庫金額の計算には使っていません">
-                      導入前のNE原価 {unitYen(lot.preAppCost)}
+                    <span className="pre-app-cost" title="便の原価に置き換える前の、もとのNEの原価（バックアップから）。在庫金額の計算には使っていません">
+                      旧NE原価 {unitYen(lot.preAppCost)}
                     </span>
                   )}
                 </td>
@@ -1111,12 +1111,12 @@ function CnyLine({ yenValue, rate }: { yenValue: number | null; rate: number | n
   );
 }
 
-/** 原価の内訳（商品・オプション・国内運賃・国際送料）があるか。導入前在庫・調整は内訳がないことが多い */
+/** 原価の内訳（商品・オプション・国内運賃・国際送料）があるか。旧原価在庫・調整は内訳がないことが多い */
 function hasBreakdown(lot: LotRow): boolean {
   return [lot.unitGoods, lot.unitOption, lot.unitDomestic, lot.unitIntl, lot.unitOther].some((v) => v !== null);
 }
 
-/** 「09/15 21:47便」「導入前在庫」など、在庫の呼び名 */
+/** 「09/15 21:47便」「旧原価在庫」など、在庫の呼び名 */
 function lotName(lot: LotRow): string {
   return lot.lotType === "shipment" ? shipmentLabel(lot.shipmentId) : lotTypeLabel[lot.lotType];
 }
@@ -1344,7 +1344,7 @@ export function SnapshotsView({
       const lines = [
         c.complete ? `入庫 +${yen(c.inValue)}（入庫一括 ${yen(c.received)}・返品や棚卸 ${yen(c.adjusted)}）` : "入庫・出荷：金額を記録する前の期間を含むため不明",
         c.complete ? `出荷 −${yen(c.outValue)}` : "",
-        c.complete && Math.round(c.opening) !== 0 ? `導入前在庫の登録 +${yen(c.opening)}` : "",
+        c.complete && Math.round(c.opening) !== 0 ? `旧原価在庫の登録 +${yen(c.opening)}` : "",
         c.complete && Math.abs(c.other) >= 1 ? `その他（原価の置き換えなど） ${c.other >= 0 ? "+" : "−"}${yen(Math.abs(c.other))}` : "",
       ].filter(Boolean);
       return (
@@ -1517,7 +1517,7 @@ export function LogsView({ logs, top }: { logs: LogRow[]; top: ReactNode }) {
               <th className="num">照合前の残り</th>
               <th className="num">古い便から消費</th>
               <th className="num">在庫増の調整</th>
-              <th className="num">導入前在庫</th>
+              <th className="num">旧原価在庫</th>
               <th className="num">入庫</th>
             </tr>
           </thead>
