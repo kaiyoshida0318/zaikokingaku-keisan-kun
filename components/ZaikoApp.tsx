@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchLogs,
-  fetchOldCosts,
+  fetchOldCostData,
   fetchProducts,
   fetchShipments,
   fetchSnapshots,
   NeReauthError,
   runReconcile,
   type LogRow,
+  type OldCostData,
   type ProductRow,
   type ReconcileProgress,
   type ReconcileResult,
@@ -46,7 +47,7 @@ export default function ZaikoApp() {
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
   // 旧NE原価（商品コード小文字 → 原価）。旧原価との比較タブで使う
-  const [oldCosts, setOldCosts] = useState<Record<string, number>>({});
+  const [oldCostData, setOldCostData] = useState<OldCostData>({ oldCost: {}, latestShipment: {} });
   const [loading, setLoading] = useState(false);
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -115,9 +116,9 @@ export default function ZaikoApp() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    const results = await Promise.allSettled([fetchProducts(), fetchShipments(), fetchSnapshots(), fetchLogs(), fetchOldCosts()]);
+    const results = await Promise.allSettled([fetchProducts(), fetchShipments(), fetchSnapshots(), fetchLogs(), fetchOldCostData()]);
     const [p, s, snap, l, o] = results;
-    if (o.status === "fulfilled") setOldCosts(o.value);
+    if (o.status === "fulfilled") setOldCostData(o.value);
     if (p.status === "fulfilled") setProducts(p.value);
     if (s.status === "fulfilled") setShipments(s.value);
     if (snap.status === "fulfilled") setSnapshots(snap.value);
@@ -135,8 +136,8 @@ export default function ZaikoApp() {
 
   // 旧原価との比較の対象：旧NE原価があり、便の原価も登録されている商品
   const oldCostCount = useMemo(
-    () => products.filter((row) => row.latestUnitCost !== null && row.productCodeLc in oldCosts).length,
-    [products, oldCosts],
+    () => products.filter((row) => row.latestUnitCost !== null && row.productCodeLc in oldCostData.oldCost).length,
+    [products, oldCostData],
   );
 
   const totals = useMemo(() => {
@@ -299,7 +300,7 @@ export default function ZaikoApp() {
           {tab === "shipments" && <ShipmentsView shipments={shipments} top={top} />}
           {tab === "snapshots" && <SnapshotsView snapshots={snapshots} period={period} onPeriodChange={setPeriod} top={top} />}
           {tab === "trend" && <TrendView snapshots={snapshots} period={period} onPeriodChange={setPeriod} top={top} />}
-          {tab === "oldcost" && <OldCostView products={products} oldCosts={oldCosts} top={errorBanner} />}
+          {tab === "oldcost" && <OldCostView products={products} data={oldCostData} top={errorBanner} />}
           {tab === "logs" && <LogsView logs={logs} top={top} />}
         </>
       )}
