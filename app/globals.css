@@ -227,27 +227,11 @@ a { color: var(--primary-dark); }
 .trend-cursor { stroke: var(--muted); stroke-width: 1; }
 .trend-hit { fill: transparent; cursor: crosshair; }
 .trend-marker { fill: #fff; stroke: var(--primary); stroke-width: 1.5; }
-.trend-sub-title { fill: var(--muted); font-size: 11px; font-weight: 600; }
-.trend-zero { stroke: var(--muted); stroke-width: 1; }
-/* 増減の棒：入庫（上）・出荷（下）・差し引き（横棒）・内訳なし（灰色） */
-.trend-bar--in { fill: #0d9488; }
-.trend-bar--out { fill: #dc2626; }
-.trend-bar--net { fill: #c4c9d1; }
-.trend-bar { opacity: .85; }
-.is-active .trend-bar, .trend-bar.is-active { opacity: 1; }
-.trend-net { stroke: var(--text); stroke-width: 2; stroke-linecap: round; }
-.trend-net-halo { stroke: #fff; stroke-width: 5; stroke-linecap: round; }
-.trend-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 2px 16px 6px; font-size: 11px; color: var(--muted); }
-.trend-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.trend-key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
-.trend-key--in { background: #0d9488; }
-.trend-key--out { background: #dc2626; }
-.trend-key--unknown { background: #c4c9d1; }
-.trend-key--net { height: 2px; width: 14px; border-radius: 1px; background: var(--text); }
 .trend-tip-change { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-light); }
-.trend-tip-diff { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); margin-bottom: 2px; }
-.trend-tip-diff b { font-variant-numeric: tabular-nums; }
-.trend-tip-note { color: var(--light); font-size: 11px; max-width: 220px; }
+.trend-tip-line { display: flex; justify-content: space-between; gap: 16px; color: var(--muted); }
+.trend-tip-line b { color: var(--text); font-variant-numeric: tabular-nums; }
+.trend-tip-line b.chg-up { color: #047857; }
+.trend-tip-line b.chg-down { color: #b91c1c; }
 .trend-tip {
   position: absolute; pointer-events: none; min-width: 170px; padding: 10px 12px; border: 1px solid var(--border);
   border-radius: 10px; background: #fff; box-shadow: var(--shadow-lg); font-size: 12px; z-index: 2;
@@ -256,7 +240,6 @@ a { color: var(--primary-dark); }
 .trend-tip-total { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
 .trend-tip-row { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 6px; color: var(--muted); }
 .trend-tip-row b { color: var(--text); font-variant-numeric: tabular-nums; }
-.trend-tip-meta { margin-top: 4px; color: var(--light); font-size: 11px; }
 .trend-foot {
   display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 4px 16px 12px;
   color: var(--light); font-size: 11px;

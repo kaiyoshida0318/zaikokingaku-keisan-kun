@@ -283,53 +283,29 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
     );
   }
 
-  /* ---------- 寸法：上が在庫金額の線、下が前の点からの増減の棒（横軸は共通） ---------- */
-  const lineH = tall ? 280 : 180;
-  const barH = tall ? 130 : 90;
-  const gapH = 34; // 線と棒のあいだ（棒の見出しを置く）
+  /* ---------- 寸法 ---------- */
+  const lineH = tall ? 340 : 220;
   const pad = { top: 16, right: 24, bottom: 30, left: 72 };
   const innerW = width - pad.left - pad.right;
-  const H = pad.top + lineH + gapH + barH + pad.bottom;
-  const barTop = pad.top + lineH + gapH;
-  const axisY = barTop + barH; // 日付の目盛りは棒の下
+  const H = pad.top + lineH + pad.bottom;
+  const axisY = pad.top + lineH;
 
-  // 横位置：日別は日付の間隔どおり、月別は1か月ずつ等間隔。両端の棒がはみ出さないよう、棒の半分だけ内側から描く
+  // 横位置：日別は日付の間隔どおり、月別は1か月ずつ等間隔（両端の点が切れないよう少し内側から）
   const t0 = dayMs(points[0].snapshotDate);
   const t1 = dayMs(points[points.length - 1].snapshotDate);
-  const slots = monthly ? points.length - 1 : Math.max(Math.round((t1 - t0) / DAY_MS), 1);
-  const bw = Math.max(2, Math.min(22, (innerW / slots) * 0.6)); // 棒の太さ：点の間隔の6割（2〜22px）
-  const inset = bw / 2 + 4;
+  const inset = 8;
   const plotL = pad.left + inset;
   const plotW = innerW - inset * 2;
   const xAt = (t: number) => plotL + ((t - t0) / Math.max(t1 - t0, 1)) * plotW;
   const xOf = (i: number) => (monthly ? plotL + (i / (points.length - 1)) * plotW : xAt(dayMs(points[i].snapshotDate)));
 
-  // 線の縦軸
+  // 縦軸
   const values = points.map((p) => p.totalValueJpy);
   const yTicks = niceTicks(Math.min(...values), Math.max(...values));
   const yMin = yTicks[0];
   const yMax = yTicks[yTicks.length - 1];
   const yStep = yTicks.length > 1 ? yTicks[1] - yTicks[0] : 1;
   const y = (v: number) => pad.top + (1 - (v - yMin) / Math.max(yMax - yMin, 1)) * lineH;
-
-  // 棒の縦軸（0をはさんで上が入庫、下が出荷）
-  const pointChanges = points.map((p) => changes.get(p.snapshotDate) ?? null);
-  let bMin = 0;
-  let bMax = 0;
-  for (const c of pointChanges) {
-    if (!c) continue;
-    bMin = Math.min(bMin, c.diff, c.complete ? -c.outValue : 0);
-    bMax = Math.max(bMax, c.diff, c.complete ? c.inValue + Math.max(c.opening, 0) : 0);
-  }
-  const bTicks = niceTicks(bMin, bMax, 3);
-  const bLo = bTicks[0];
-  const bHi = bTicks[bTicks.length - 1];
-  const bStep = bTicks.length > 1 ? bTicks[1] - bTicks[0] : 1;
-  const by = (v: number) => barTop + (1 - (v - bLo) / Math.max(bHi - bLo, 1)) * barH;
-  const zeroY = by(0);
-
-  // 棒が細いときは差し引きの横棒を省く（重なって読めないため。吹き出しには出る）
-  const showNet = bw >= 6;
 
   // 横軸の目盛り
   const withYear = new Date(t0).getUTCFullYear() !== new Date(t1).getUTCFullYear();
@@ -346,9 +322,9 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
         label: dateTickLabel(t, (t1 - t0) / DAY_MS > 100, withYear),
       }));
 
-  const coords = points.map((p, i) => ({ p, cx: xOf(i), cy: y(p.totalValueJpy), c: pointChanges[i] }));
+  const coords = points.map((p, i) => ({ p, cx: xOf(i), cy: y(p.totalValueJpy), c: changes.get(p.snapshotDate) ?? null }));
   const line = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.cx.toFixed(1)},${c.cy.toFixed(1)}`).join(" ");
-  const area = `${line} L${coords[coords.length - 1].cx.toFixed(1)},${pad.top + lineH} L${coords[0].cx.toFixed(1)},${pad.top + lineH} Z`;
+  const area = `${line} L${coords[coords.length - 1].cx.toFixed(1)},${axisY} L${coords[0].cx.toFixed(1)},${axisY} Z`;
   const last = coords[coords.length - 1];
   const active = hover !== null ? coords[hover] ?? null : null;
   const showMarkers = points.length <= 40;
@@ -363,30 +339,22 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
     setHover(best);
   }
 
-  // 吹き出しの中身
+  // 吹き出し：増減と、その間の入庫・出荷（金額がない・0円なら —）
   const tipChange = active?.c ?? null;
-  const tipBreakdown: Array<{ label: string; value: string; cls?: string }> = [];
-  if (tipChange?.complete) {
-    tipBreakdown.push({ label: "入庫", value: `+${yen(tipChange.inValue)}`, cls: "in" });
-    if (Math.round(tipChange.adjusted) !== 0) {
-      tipBreakdown.push({ label: "　うち返品・棚卸", value: yen(tipChange.adjusted) });
-    }
-    tipBreakdown.push({ label: "出荷", value: `−${yen(tipChange.outValue)}`, cls: "out" });
-    if (Math.round(tipChange.opening) !== 0) tipBreakdown.push({ label: "導入前在庫の登録", value: signedYen(tipChange.opening) });
-    if (Math.abs(tipChange.other) >= 1) tipBreakdown.push({ label: "その他（原価の置き換えなど）", value: signedYen(tipChange.other) });
-  }
+  const moveText = (value: number, sign: "+" | "−") =>
+    tipChange?.complete && Math.round(value) !== 0 ? `${sign}${yen(value)}` : "—";
   // 吹き出しは点の左右どちらか、はみ出さない側に出す
   const tipLeft = active ? (active.cx > width * 0.6 ? active.cx - 14 : active.cx + 14) : 0;
   const tipAlign = active && active.cx > width * 0.6 ? "translateX(-100%)" : "none";
-  const tipHeight = 120 + storeOrder.length * 19 + (tipChange ? 26 + Math.max(tipBreakdown.length, 1) * 19 : 0);
+  const tipHeight = 70 + storeOrder.length * 19 + (tipChange ? 70 : 0);
   const tipTop = active ? Math.min(Math.max(8, active.cy - 20), H - tipHeight) : 0;
 
   return (
     <div className={`panel trend ${tall ? "trend--tall" : ""}`}>
       {header}
       <div className="trend-body" ref={boxRef}>
-        <svg className="trend-svg" width={width} height={H} role="img" aria-label="在庫金額の推移と、前の点からの増減">
-          {/* ---- 上：在庫金額 ---- */}
+        <svg className="trend-svg" width={width} height={H} role="img" aria-label="在庫金額の推移">
+          {/* 縦軸：目盛りと細い横線 */}
           {yTicks.map((v) => (
             <g key={`y${v}`}>
               <line className="trend-grid" x1={pad.left} x2={pad.left + innerW} y1={y(v)} y2={y(v)} />
@@ -395,65 +363,7 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
               </text>
             </g>
           ))}
-          <path className="trend-area" d={area} />
-          <path className="trend-line" d={line} />
-          {showMarkers &&
-            coords.map((c) => <circle key={c.p.snapshotDate} className="trend-marker" cx={c.cx} cy={c.cy} r={3} />)}
-          {!active && <circle className="trend-dot" cx={last.cx} cy={last.cy} r={4.5} />}
-
-          {/* ---- 下：前の点からの増減（上に入庫・下に出荷、横棒が差し引きの増減） ---- */}
-          <text className="trend-sub-title" x={pad.left} y={barTop - 12}>
-            前の{monthly ? "月末" : "記録"}からの増減
-          </text>
-          {bTicks.map((v) => (
-            <g key={`b${v}`}>
-              <line className={v === 0 ? "trend-zero" : "trend-grid"} x1={pad.left} x2={pad.left + innerW} y1={by(v)} y2={by(v)} />
-              <text className="trend-tick" x={pad.left - 10} y={by(v)} textAnchor="end" dominantBaseline="middle">
-                {v === 0 ? "0" : `${v > 0 ? "+" : "−"}${axisYen(Math.abs(v), bStep)}`}
-              </text>
-            </g>
-          ))}
-          {coords.map(({ p, cx, c }, i) => {
-            if (!c) return null;
-            const left = cx - bw / 2;
-            const isActive = hover === i;
-            if (!c.complete) {
-              // 入庫・出荷の金額がない期間は、増減だけを灰色の棒で
-              const top = Math.min(by(c.diff), zeroY);
-              return (
-                <rect
-                  key={p.snapshotDate}
-                  className={`trend-bar trend-bar--net ${isActive ? "is-active" : ""}`}
-                  x={left}
-                  y={top}
-                  width={bw}
-                  height={Math.max(1, Math.abs(by(c.diff) - zeroY))}
-                  rx={Math.min(3, bw / 2)}
-                />
-              );
-            }
-            const inTop = by(c.inValue + Math.max(c.opening, 0));
-            const outBottom = by(-c.outValue);
-            return (
-              <g key={p.snapshotDate} className={isActive ? "is-active" : ""}>
-                {c.inValue + Math.max(c.opening, 0) > 0 && (
-                  <rect className="trend-bar trend-bar--in" x={left} y={inTop} width={bw} height={Math.max(1, zeroY - 1 - inTop)} rx={Math.min(3, bw / 2)} />
-                )}
-                {c.outValue > 0 && (
-                  <rect className="trend-bar trend-bar--out" x={left} y={zeroY + 1} width={bw} height={Math.max(1, outBottom - zeroY - 1)} rx={Math.min(3, bw / 2)} />
-                )}
-                {/* 差し引きの増減 */}
-                {showNet && (
-                  <>
-                    <line className="trend-net-halo" x1={left - 2} x2={left + bw + 2} y1={by(c.diff)} y2={by(c.diff)} />
-                    <line className="trend-net" x1={left - 2} x2={left + bw + 2} y1={by(c.diff)} y2={by(c.diff)} />
-                  </>
-                )}
-              </g>
-            );
-          })}
-
-          {/* ---- 横軸：日付（線と棒で共通） ---- */}
+          {/* 横軸：日付の目盛り */}
           <line className="trend-axis-line" x1={pad.left} x2={pad.left + innerW} y1={axisY} y2={axisY} />
           {xTicks.map((t) => (
             <g key={`x${t.x}`}>
@@ -463,8 +373,13 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
               </text>
             </g>
           ))}
-
-          {/* マウスを乗せた点（線と棒をまたいで縦線） */}
+          {/* データ */}
+          <path className="trend-area" d={area} />
+          <path className="trend-line" d={line} />
+          {showMarkers &&
+            coords.map((c) => <circle key={c.p.snapshotDate} className="trend-marker" cx={c.cx} cy={c.cy} r={3} />)}
+          {!active && <circle className="trend-dot" cx={last.cx} cy={last.cy} r={4.5} />}
+          {/* マウスを乗せた点 */}
           {active && (
             <g>
               <line className="trend-cursor" x1={active.cx} x2={active.cx} y1={pad.top} y2={axisY} />
@@ -473,10 +388,10 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
           )}
           <rect
             className="trend-hit"
-            x={pad.left - bw}
+            x={pad.left}
             y={pad.top}
-            width={innerW + bw * 2}
-            height={axisY - pad.top}
+            width={innerW}
+            height={lineH}
             onMouseMove={onMove}
             onMouseLeave={() => setHover(null)}
           />
@@ -496,34 +411,22 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
               ))}
             {tipChange && (
               <div className="trend-tip-change">
-                <div className="trend-tip-diff">
-                  <span>前の{monthly ? "月末" : "記録"}から</span>
+                <div className="trend-tip-line">
+                  <span>増減</span>
                   <b className={tipChange.diff > 0 ? "chg-up" : tipChange.diff < 0 ? "chg-down" : ""}>{signedYen(tipChange.diff)}</b>
                 </div>
-                {tipChange.complete ? (
-                  tipBreakdown.map((row) => (
-                    <div key={row.label} className="trend-tip-row">
-                      <span className={row.cls ? `trend-key trend-key--${row.cls}` : ""} aria-hidden="true" />
-                      <span>{row.label}</span>
-                      <b>{row.value}</b>
-                    </div>
-                  ))
-                ) : (
-                  <div className="trend-tip-note">入庫・出荷：金額を記録する前の期間を含むため不明</div>
-                )}
+                <div className="trend-tip-line">
+                  <span>入庫</span>
+                  <b>{moveText(tipChange.inValue, "+")}</b>
+                </div>
+                <div className="trend-tip-line">
+                  <span>出荷</span>
+                  <b>{moveText(tipChange.outValue, "−")}</b>
+                </div>
               </div>
             )}
-            <div className="trend-tip-meta">
-              {count(active.p.totalQty)}個・{count(active.p.productCount)}商品
-            </div>
           </div>
         )}
-      </div>
-      <div className="trend-legend">
-        <span><i className="trend-key trend-key--in" />入庫</span>
-        <span><i className="trend-key trend-key--out" />出荷</span>
-        {showNet && <span><i className="trend-key trend-key--net" />差し引きの増減</span>}
-        <span><i className="trend-key trend-key--unknown" />増減のみ（入庫・出荷の金額を記録する前）</span>
       </div>
       <div className="trend-foot">
         <span>
