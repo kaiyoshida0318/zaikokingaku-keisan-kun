@@ -61,6 +61,18 @@ export function unitYen(value: number | null | undefined, rounding: CostRounding
   return yen(roundCost(value, rounding), rounding.digits);
 }
 
+/** 人民元（小数2桁）。例：12.47元 */
+export function cny(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  return `${value.toLocaleString("ja-JP", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}元`;
+}
+
+/** レート（1元＝何円）。小数は必要な分だけ（最大4桁） */
+export function rateText(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  return value.toLocaleString("ja-JP", { maximumFractionDigits: 4 });
+}
+
 /** CSV向け：丸めた原価（空は空欄） */
 export function unitCsv(value: number | null | undefined): number | "" {
   if (value === null || value === undefined || !Number.isFinite(value)) return "";

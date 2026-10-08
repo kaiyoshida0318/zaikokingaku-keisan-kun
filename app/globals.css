@@ -335,7 +335,7 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 .shipment-link { font-size: 11px; color: var(--blue); text-decoration: none; font-variant-numeric: tabular-nums; }
 .shipment-link:hover { text-decoration: underline; }
 .shipment-cell .shipment-link { font-size: 10px; }
-/* 1単位原価 ＝ 内訳の合計、をまとまりで見せる */
+/* NE数量1原価 ＝ 内訳の合計、をまとまりで見せる */
 .tbl--inner th.cost-group-head {
   text-align: center; background: #fff1eb; color: #b4380e; border-bottom: 1px solid #fbd5c4;
   border-left: 2px solid #fbc8b3; border-right: 2px solid #fbc8b3;
@@ -348,6 +348,10 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 .tbl--inner tr.is-used td.cost-col { background: #fdfcfb; }
 .cost-op { color: #e8a58a; font-weight: 700; margin-right: 6px; }
 .tbl--inner td.cost-none { text-align: center; color: var(--light); font-size: 12px; }
+/* 元の金額（人民元）とレート */
+.tbl--inner .th-sub { display: block; font-size: 10px; font-weight: 500; color: var(--light); letter-spacing: 0; }
+.tbl--inner .cost-cny { display: block; font-size: 11px; color: var(--muted); font-weight: 400; line-height: 1.3; }
+.tbl--inner td.rate-col { color: var(--text); font-variant-numeric: tabular-nums; }
 .pre-app-cost {
   display: table; margin-top: 4px; padding: 1px 8px; border-radius: 10px;
   background: var(--bg); border: 1px dashed var(--border); color: var(--muted); font-size: 11px; white-space: nowrap;

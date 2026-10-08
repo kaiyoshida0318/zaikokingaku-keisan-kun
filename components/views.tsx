@@ -15,12 +15,14 @@ import {
   type SnapshotRow,
 } from "@/lib/data";
 import {
+  cny,
   count,
   csvBlob,
   dateOnly,
   dateTime,
   downloadBlob,
   rakumartDeliveryUrl,
+  rateText,
   shipmentLabel,
   timeOnly,
   todayJst,
@@ -836,17 +838,27 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
             <th rowSpan={2} className="num">残り</th>
             <th rowSpan={2} className="num">入庫数</th>
             <th rowSpan={2} className="num">残り金額</th>
-            <th colSpan={5} className="cost-group-head">1単位原価 ＝ 商品 ＋ オプション ＋ 国内運賃 ＋ 国際送料</th>
+            <th
+              colSpan={5}
+              className="cost-group-head"
+              title="NEの数量1つあたりの原価。原価 ＝ 商品 ＋ オプション ＋ 国内運賃 ＋ 国際送料。商品・オプション・国内運賃は配送依頼書の元の金額 × レートで円にしています"
+            >
+              NE数量1原価
+            </th>
+            <th rowSpan={2} className="num rate-col" title="配送依頼書のレート（1元が何円か）">
+              レート
+              <small className="th-sub">円/元</small>
+            </th>
             <th rowSpan={2}>種類</th>
             <th rowSpan={2}>便</th>
             <th rowSpan={2}>登録日</th>
             <th rowSpan={2}>メモ</th>
           </tr>
           <tr>
-            <th className="num cost-col cost-col--first">1単位原価</th>
-            <th className="num cost-col"><span className="cost-op">＝</span>商品</th>
-            <th className="num cost-col"><span className="cost-op">＋</span>オプション</th>
-            <th className="num cost-col"><span className="cost-op">＋</span>国内運賃</th>
+            <th className="num cost-col cost-col--first">原価</th>
+            <th className="num cost-col"><span className="cost-op">＝</span>商品<small className="th-sub">元 × レート</small></th>
+            <th className="num cost-col"><span className="cost-op">＋</span>オプション<small className="th-sub">元 × レート</small></th>
+            <th className="num cost-col"><span className="cost-op">＋</span>国内運賃<small className="th-sub">元 × レート</small></th>
             <th className="num cost-col cost-col--last"><span className="cost-op">＋</span>国際送料</th>
           </tr>
         </thead>
@@ -875,9 +887,21 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
                 <td className="num strong cost-col cost-col--first">{unitYen(lot.unitCost)}</td>
                 {hasBreakdown(lot) ? (
                   <>
-                    <td className="num cost-col"><span className="cost-op">＝</span>{unitYen(lot.unitGoods ?? 0)}</td>
-                    <td className="num cost-col"><span className="cost-op">＋</span>{unitYen(lot.unitOption ?? 0)}</td>
-                    <td className="num cost-col"><span className="cost-op">＋</span>{unitYen(lot.unitDomestic ?? 0)}</td>
+                    <td className="num cost-col">
+                      <span className="cost-op">＝</span>
+                      {unitYen(lot.unitGoods ?? 0)}
+                      <CnyLine yenValue={lot.unitGoods} rate={lot.rate} />
+                    </td>
+                    <td className="num cost-col">
+                      <span className="cost-op">＋</span>
+                      {unitYen(lot.unitOption ?? 0)}
+                      <CnyLine yenValue={lot.unitOption} rate={lot.rate} />
+                    </td>
+                    <td className="num cost-col">
+                      <span className="cost-op">＋</span>
+                      {unitYen(lot.unitDomestic ?? 0)}
+                      <CnyLine yenValue={lot.unitDomestic} rate={lot.rate} />
+                    </td>
                     <td className="num cost-col cost-col--last">
                       <span className="cost-op">＋</span>
                       {unitYen((lot.unitIntl ?? 0) + (lot.unitOther ?? 0))}
@@ -888,6 +912,9 @@ export function LotTable({ lots }: { lots: LotRow[] }) {
                     {lot.lotType === "opening" ? "内訳なし（NEの原価）" : "内訳なし"}
                   </td>
                 )}
+                <td className="num rate-col">
+                  {lot.rate !== null ? <span title={`1元 ＝ ${rateText(lot.rate)}円`}>{rateText(lot.rate)}</span> : "—"}
+                </td>
                 <td>
                   {lotTypeLabel[lot.lotType]}
                   {lot.needsReview && <span className="status warn">要確認</span>}
@@ -946,6 +973,12 @@ function ShipmentCell({ id }: { id: string | null }) {
       {id && <ShipmentLink id={id} />}
     </span>
   );
+}
+
+/** 円の原価の下に、元の金額（円 ÷ レート）を小さく出す。レートがない・0円のときは出さない */
+function CnyLine({ yenValue, rate }: { yenValue: number | null; rate: number | null }) {
+  if (rate === null || yenValue === null || Math.abs(yenValue) < 0.00005) return null;
+  return <small className="cost-cny">{cny(yenValue / rate)}</small>;
 }
 
 /** 原価の内訳（商品・オプション・国内運賃・国際送料）があるか。導入前在庫・調整は内訳がないことが多い */

@@ -52,6 +52,8 @@ export type LotRow = {
   createdAt: string;
   /** 導入前在庫のメモ：アプリ導入前のNEの原価（バックアップから。計算には使わない） */
   preAppCost: number | null;
+  /** 便の配送依頼書レート（1元＝何円）。商品・オプション・国内運賃は「元 × レート」で円にしている。便でない在庫は null */
+  rate: number | null;
 };
 
 export type ShipmentRow = {
@@ -182,16 +184,27 @@ export async function fetchProducts(): Promise<ProductRow[]> {
   }));
 }
 
+/** cost_lots に埋め込んだ cost_shipments(rate) からレートを取り出す（0・不明は null） */
+function shipmentRate(embedded: unknown): number | null {
+  const row = Array.isArray(embedded) ? embedded[0] : embedded;
+  const rate = numOrNull((row as { rate?: unknown } | null | undefined)?.rate);
+  return rate && rate > 0 ? rate : null;
+}
+
 export async function fetchLots(productCodeLc: string): Promise<LotRow[]> {
-  const { data, error } = await client()
-    .from("cost_lots")
-    .select("*")
-    .eq("product_code_lc", productCodeLc)
-    .order("received_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(200);
+  const query = (columns: string) =>
+    client()
+      .from("cost_lots")
+      .select(columns)
+      .eq("product_code_lc", productCodeLc)
+      .order("received_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(200);
+  // 便のレートも一緒に取る。取れない環境（便テーブルとのつながりがない等）ではレートなしで読む
+  let { data, error } = await query("*,cost_shipments(rate)");
+  if (error) ({ data, error } = await query("*"));
   if (error) throw friendly(error);
-  return (data ?? []).map((row: Record<string, unknown>) => ({
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
     id: num(row.id),
     productCode: String(row.product_code ?? ""),
     lotType: (row.lot_type as LotRow["lotType"]) ?? "shipment",
@@ -209,6 +222,7 @@ export async function fetchLots(productCodeLc: string): Promise<LotRow[]> {
     note: (row.note as string | null) ?? null,
     createdAt: String(row.created_at ?? ""),
     preAppCost: numOrNull(row.pre_app_cost),
+    rate: shipmentRate(row.cost_shipments),
   }));
 }
 
