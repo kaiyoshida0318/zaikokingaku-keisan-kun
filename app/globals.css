@@ -510,3 +510,32 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 .tbl--snap th .th-dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 5px; vertical-align: 1px; }
 .chg-up { color: #047857; font-weight: 600; }
 .chg-down { color: #b91c1c; font-weight: 600; }
+
+/* ---------- 旧原価との比較 ---------- */
+.cmp-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.cmp-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px;
+  display: flex; flex-direction: column; gap: 4px; box-shadow: var(--shadow);
+}
+.cmp-card h3 { font-size: 13px; margin: 0 0 6px; display: flex; align-items: baseline; gap: 8px; }
+.cmp-card h3 small { font-size: 11px; font-weight: 500; color: var(--light); }
+.cmp-line { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
+.cmp-line b { font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
+.cmp-diff {
+  display: flex; align-items: baseline; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border-light);
+  font-size: 12px; color: var(--muted);
+}
+.cmp-diff b { margin-left: auto; font-size: 20px; font-variant-numeric: tabular-nums; }
+.cmp-diff small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
+.cmp-count { font-size: 28px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cmp-count span { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.cmp-split { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.cmp-split b { font-variant-numeric: tabular-nums; }
+.cmp-note { margin-top: auto; padding-top: 6px; font-size: 11px; color: var(--light); }
+/* 原価が上がった（赤）・下がった（緑） */
+.cost-up { color: #b91c1c; }
+.cost-down { color: #047857; }
+td.cost-up, td.cost-down { font-weight: 600; }
+@media (max-width: 900px) {
+  .cmp-cards { grid-template-columns: 1fr; }
+}

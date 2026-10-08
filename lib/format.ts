@@ -55,6 +55,12 @@ export function roundCost(value: number, rounding: CostRounding = costRounding):
   return r / f;
 }
 
+/** 原価の差の向き：表示の桁数で四捨五入して0なら 0（丸め方の設定に関係なく、ごく小さい差は「同じ」扱い） */
+export function costSign(value: number): -1 | 0 | 1 {
+  const r = roundCost(value, { digits: costRounding.digits, mode: "round" });
+  return r > 0 ? 1 : r < 0 ? -1 : 0;
+}
+
 /** 単価向け：設定の桁数・丸め方で表示 */
 export function unitYen(value: number | null | undefined, rounding: CostRounding = costRounding): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";

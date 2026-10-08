@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchLogs,
+  fetchOldCosts,
   fetchProducts,
   fetchShipments,
   fetchSnapshots,
@@ -31,9 +32,9 @@ import { DEFAULT_PERIOD, type Period } from "./PeriodBar";
 import SettingsPanel from "./SettingsPanel";
 import SyncModal from "./SyncModal";
 import InventorySummary from "./InventorySummary";
-import { LogsView, ProductsView, ShipmentsView, SnapshotsView, TrendView } from "./views";
+import { LogsView, OldCostView, ProductsView, ShipmentsView, SnapshotsView, TrendView } from "./views";
 
-type Tab = "products" | "shipments" | "snapshots" | "trend" | "logs";
+type Tab = "products" | "shipments" | "snapshots" | "trend" | "oldcost" | "logs";
 
 export default function ZaikoApp() {
   const [authLoading, setAuthLoading] = useState(true);
@@ -44,6 +45,8 @@ export default function ZaikoApp() {
   const [shipments, setShipments] = useState<ShipmentRow[]>([]);
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
+  // 旧NE原価（商品コード小文字 → 原価）。旧原価との比較タブで使う
+  const [oldCosts, setOldCosts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -112,8 +115,9 @@ export default function ZaikoApp() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    const results = await Promise.allSettled([fetchProducts(), fetchShipments(), fetchSnapshots(), fetchLogs()]);
-    const [p, s, snap, l] = results;
+    const results = await Promise.allSettled([fetchProducts(), fetchShipments(), fetchSnapshots(), fetchLogs(), fetchOldCosts()]);
+    const [p, s, snap, l, o] = results;
+    if (o.status === "fulfilled") setOldCosts(o.value);
     if (p.status === "fulfilled") setProducts(p.value);
     if (s.status === "fulfilled") setShipments(s.value);
     if (snap.status === "fulfilled") setSnapshots(snap.value);
@@ -128,6 +132,12 @@ export default function ZaikoApp() {
   useEffect(() => {
     if (isLoggedIn) void loadAll();
   }, [isLoggedIn, loadAll]);
+
+  // 旧原価との比較の対象：旧NE原価があり、便の原価も登録されている商品
+  const oldCostCount = useMemo(
+    () => products.filter((row) => row.latestUnitCost !== null && row.productCodeLc in oldCosts).length,
+    [products, oldCosts],
+  );
 
   const totals = useMemo(() => {
     const inStock = products.filter((row) => row.qty > 0);
@@ -244,6 +254,7 @@ export default function ZaikoApp() {
             ["snapshots", "📅 在庫推移(表)", locked ? null : snapshots.length],
             ["trend", "📈 在庫推移(グラフ)", null],
             ["shipments", "🚚 入庫履歴", locked ? null : shipments.length],
+            ["oldcost", "⚖️ 旧原価との比較", locked ? null : oldCostCount],
             ["logs", "🕒 照合ログ", null],
           ] as const
         ).map(([key, label, n]) => (
@@ -287,6 +298,7 @@ export default function ZaikoApp() {
           {tab === "shipments" && <ShipmentsView shipments={shipments} top={top} />}
           {tab === "snapshots" && <SnapshotsView snapshots={snapshots} period={period} onPeriodChange={setPeriod} top={top} />}
           {tab === "trend" && <TrendView snapshots={snapshots} period={period} onPeriodChange={setPeriod} top={top} />}
+          {tab === "oldcost" && <OldCostView products={products} oldCosts={oldCosts} top={top} />}
           {tab === "logs" && <LogsView logs={logs} top={top} />}
         </>
       )}

@@ -184,6 +184,35 @@ export async function fetchProducts(): Promise<ProductRow[]> {
   }));
 }
 
+/**
+ * 旧NE原価（旧原価在庫のメモ。バックアップから入れた、便の原価に置き換える前のNEの原価）。
+ * 戻り値は 商品コード小文字 → 旧NE原価。列がまだない・読めないときは空
+ */
+export async function fetchOldCosts(): Promise<Record<string, number>> {
+  const db = client();
+  type Raw = Record<string, unknown>;
+  try {
+    const rows = await fetchAll<Raw>((from, to) =>
+      db
+        .from("cost_lots")
+        .select("id,product_code_lc,pre_app_cost")
+        .eq("lot_type", "opening")
+        .not("pre_app_cost", "is", null)
+        .order("id")
+        .range(from, to),
+    );
+    const out: Record<string, number> = {};
+    for (const row of rows) {
+      const code = String(row.product_code_lc ?? "");
+      const cost = numOrNull(row.pre_app_cost);
+      if (code && cost !== null && !(code in out)) out[code] = cost;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 /** cost_lots に埋め込んだ cost_shipments(rate) からレートを取り出す（0・不明は null） */
 function shipmentRate(embedded: unknown): number | null {
   const row = Array.isArray(embedded) ? embedded[0] : embedded;

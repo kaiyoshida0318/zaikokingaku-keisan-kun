@@ -23,6 +23,7 @@ import {
   dateTime,
   downloadBlob,
   rakumartDeliveryUrl,
+  costSign,
   rateText,
   shipmentLabel,
   timeOnly,
@@ -1547,6 +1548,420 @@ export function LogsView({ logs, top }: { logs: LogRow[]; top: ReactNode }) {
       )}
         </div>
       </main>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* 旧原価との比較                                                       */
+/* ------------------------------------------------------------------ */
+
+type OldCostRow = {
+  product: ProductRow;
+  oldCost: number; // 旧NE原価
+  latestCost: number; // 最新の便の原価
+  diff: number; // 最新 − 旧（1個あたり）
+  rate: number | null; // 差額率（旧原価に対して）
+  impact: number; // 在庫数 × 差額
+};
+type OldCostSortKey = "code" | "name" | "store" | "qty" | "old" | "latest" | "diff" | "rate" | "impact";
+type OldCostFilter = "all" | "up" | "down";
+
+const oldCostColumns: { key: OldCostSortKey; label: string; num?: boolean; firstDir: SortDir; width: number }[] = [
+  { key: "code", label: "商品コード", firstDir: "asc", width: 210 },
+  { key: "name", label: "商品名", firstDir: "asc", width: 240 },
+  { key: "store", label: "店舗", firstDir: "asc", width: 140 },
+  { key: "qty", label: "在庫数", num: true, firstDir: "desc", width: 90 },
+  { key: "old", label: "旧原価", num: true, firstDir: "desc", width: 100 },
+  { key: "latest", label: "最新原価", num: true, firstDir: "desc", width: 100 },
+  { key: "diff", label: "差額", num: true, firstDir: "desc", width: 100 },
+  { key: "rate", label: "差額率", num: true, firstDir: "desc", width: 90 },
+  { key: "impact", label: "在庫金額の差", num: true, firstDir: "desc", width: 130 },
+];
+
+/** 原価の差（＋は最新原価のほうが高い）。表示の丸めで0になるものは「変わらない」 */
+function costDiffText(value: number, unit: (v: number) => string): string {
+  const sign = costSign(value);
+  if (sign === 0) return `±${unit(0)}`;
+  return `${sign > 0 ? "+" : "−"}${unit(Math.abs(value))}`;
+}
+function costDiffClass(value: number): string {
+  const sign = costSign(value);
+  return sign > 0 ? "cost-up" : sign < 0 ? "cost-down" : "muted";
+}
+function pctText(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return "—";
+  const r = Math.round(value * 1000) / 10;
+  return `${r > 0 ? "+" : r < 0 ? "−" : "±"}${Math.abs(r).toFixed(1)}%`;
+}
+
+export function OldCostView({
+  products,
+  oldCosts,
+  top,
+}: {
+  products: ProductRow[];
+  oldCosts: Record<string, number>;
+  top: ReactNode;
+}) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<OldCostFilter>("all");
+  const [storeFilter, setStoreFilter] = useState<string | null>(null);
+  const [preview, setPreview] = useState<ProductRow | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [limit, setLimit] = useState(200);
+  const [sort, setSort] = useState<{ key: OldCostSortKey; dir: SortDir }>({ key: "impact", dir: "desc" });
+  const columnWidths = useColumnWidths(
+    "zaiko_oldcost_col_widths",
+    Object.fromEntries(oldCostColumns.map((col) => [col.key, col.width])),
+  );
+  const fixedWidth = IMAGE_COL_WIDTH + oldCostColumns.slice(0, -1).reduce((sum, col) => sum + columnWidths.widthOf(col.key), 0);
+
+  // 対象：旧NE原価があり、入庫一括で便の原価も登録されている商品
+  const base = useMemo<OldCostRow[]>(
+    () =>
+      products.flatMap((product) => {
+        const oldCost = oldCosts[product.productCodeLc];
+        if (oldCost === undefined || product.latestUnitCost === null) return [];
+        const latestCost = product.latestUnitCost;
+        const diff = latestCost - oldCost;
+        return [{ product, oldCost, latestCost, diff, rate: oldCost > 0 ? diff / oldCost : null, impact: product.qty * diff }];
+      }),
+    [products, oldCosts],
+  );
+  const withOldCost = useMemo(() => products.filter((p) => p.productCodeLc in oldCosts).length, [products, oldCosts]);
+
+  // 上の集計（絞り込みに関係なく、対象の商品すべて）
+  const summary = useMemo(() => {
+    let oldValue = 0;
+    let latestValue = 0;
+    let oldSum = 0;
+    let latestSum = 0;
+    let up = 0;
+    let down = 0;
+    for (const row of base) {
+      oldValue += row.product.qty * row.oldCost;
+      latestValue += row.product.qty * row.latestCost;
+      oldSum += row.oldCost;
+      latestSum += row.latestCost;
+      if (costSign(row.diff) > 0) up += 1;
+      else if (costSign(row.diff) < 0) down += 1;
+    }
+    const n = base.length;
+    return {
+      n,
+      oldValue,
+      latestValue,
+      oldAvg: n ? oldSum / n : 0,
+      latestAvg: n ? latestSum / n : 0,
+      up,
+      down,
+      same: n - up - down,
+    };
+  }, [base]);
+
+  const storeOrder = useMemo(() => {
+    const value = new Map<string, number>();
+    for (const row of products) value.set(row.store, (value.get(row.store) ?? 0) + row.valueJpy);
+    return sortStores(value.keys(), (store) => value.get(store) ?? 0);
+  }, [products]);
+  const storesInBase = useMemo(() => storeOrder.filter((store) => base.some((row) => row.product.store === store)), [storeOrder, base]);
+
+  function toggleSort(key: OldCostSortKey) {
+    setSort((current) =>
+      current.key === key
+        ? { key, dir: current.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: oldCostColumns.find((col) => col.key === key)?.firstDir ?? "asc" },
+    );
+  }
+
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = base.filter((row) => {
+      if (filter === "up" && costSign(row.diff) <= 0) return false;
+      if (filter === "down" && costSign(row.diff) >= 0) return false;
+      if (storeFilter !== null && row.product.store !== storeFilter) return false;
+      if (!q) return true;
+      return row.product.productCodeLc.includes(q) || row.product.productName.toLowerCase().includes(q);
+    });
+    const pick = (row: OldCostRow): number | string => {
+      switch (sort.key) {
+        case "code": return row.product.productCodeLc;
+        case "name": return row.product.productName;
+        case "store": return row.product.store;
+        case "qty": return row.product.qty;
+        case "old": return row.oldCost;
+        case "latest": return row.latestCost;
+        case "diff": return row.diff;
+        case "rate": return row.rate ?? Number.NEGATIVE_INFINITY;
+        case "impact": return row.impact;
+      }
+    };
+    const sign = sort.dir === "asc" ? 1 : -1;
+    return filtered.sort((a, b) => {
+      const va = pick(a);
+      const vb = pick(b);
+      const c = typeof va === "string" ? textCollator.compare(va, vb as string) : va - (vb as number);
+      return sign * c || a.product.productCodeLc.localeCompare(b.product.productCodeLc);
+    });
+  }, [base, query, filter, storeFilter, sort]);
+
+  function exportCsv() {
+    downloadBlob(
+      csvBlob(
+        ["商品コード", "商品名", "店舗", "在庫数", "旧原価", "最新原価", "差額", "差額率(%)", "在庫金額の差"],
+        rows.map((row) => [
+          row.product.productCode,
+          row.product.productName,
+          row.product.store,
+          row.product.qty,
+          unitCsv(row.oldCost),
+          unitCsv(row.latestCost),
+          unitCsv(row.diff),
+          row.rate === null ? "" : Math.round(row.rate * 1000) / 10,
+          Math.round(row.impact),
+        ]),
+      ),
+      `旧原価との比較${storeFilter ? `_${storeFilter}` : ""}_${todayJst()}.csv`,
+    );
+  }
+
+  const valueDiff = summary.latestValue - summary.oldValue;
+  const avgDiff = summary.latestAvg - summary.oldAvg;
+
+  return (
+    <>
+      <main className="content">
+        {top}
+        <div className="cmp-cards">
+          <section className="cmp-card">
+            <h3>在庫金額<small>今の在庫数 × 原価</small></h3>
+            <div className="cmp-line"><span>旧原価で計算</span><b>{yen(summary.oldValue)}</b></div>
+            <div className="cmp-line"><span>最新原価で計算</span><b>{yen(summary.latestValue)}</b></div>
+            <div className="cmp-diff">
+              <span>差</span>
+              <b className={costDiffClass(valueDiff)}>{costDiffText(valueDiff, yen)}</b>
+              <small>{pctText(summary.oldValue > 0 ? valueDiff / summary.oldValue : null)}</small>
+            </div>
+          </section>
+          <section className="cmp-card">
+            <h3>平均原価<small>商品コード単位</small></h3>
+            <div className="cmp-line"><span>旧原価</span><b>{unitYen(summary.oldAvg)}</b></div>
+            <div className="cmp-line"><span>最新原価</span><b>{unitYen(summary.latestAvg)}</b></div>
+            <div className="cmp-diff">
+              <span>差</span>
+              <b className={costDiffClass(avgDiff)}>{costDiffText(avgDiff, (v) => unitYen(v))}</b>
+              <small>{pctText(summary.oldAvg > 0 ? avgDiff / summary.oldAvg : null)}</small>
+            </div>
+          </section>
+          <section className="cmp-card">
+            <h3>対象の商品<small>旧原価があり、便の原価も登録済み</small></h3>
+            <div className="cmp-count">
+              {count(summary.n)}
+              <span>商品</span>
+            </div>
+            <div className="cmp-split">
+              <span><b className="cost-up">▲ {count(summary.up)}</b> 上がった</span>
+              <span><b className="cost-down">▼ {count(summary.down)}</b> 下がった</span>
+              <span><b className="muted">― {count(summary.same)}</b> 同じ</span>
+            </div>
+            <small className="cmp-note">旧原価がある {count(withOldCost)}商品のうち、便がまだない {count(withOldCost - summary.n)}商品は含みません</small>
+          </section>
+        </div>
+        <div className="panel">
+          <div className="panel-toolbar">
+            <h2>⚖️ 旧原価との比較</h2>
+            <div className="search-box">
+              <span>⌕</span>
+              <input
+                type="search"
+                placeholder="商品コード・商品名で検索..."
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setLimit(200);
+                }}
+              />
+            </div>
+            <div className="seg" role="group" aria-label="絞り込み">
+              {(
+                [
+                  ["all", "すべて", summary.n],
+                  ["up", "上がった", summary.up],
+                  ["down", "下がった", summary.down],
+                ] as const
+              ).map(([key, label, n]) => (
+                <button key={key} type="button" className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>
+                  {label}
+                  <span className="seg-cnt">{n}</span>
+                </button>
+              ))}
+            </div>
+            {storesInBase.length > 1 && (
+              <label className="store-select">
+                <span>店舗</span>
+                <select
+                  value={storeFilter ?? ""}
+                  onChange={(event) => {
+                    setStoreFilter(event.target.value || null);
+                    setLimit(200);
+                  }}
+                >
+                  <option value="">すべての店舗</option>
+                  {storesInBase.map((store) => (
+                    <option key={store} value={store}>
+                      {store}（{count(base.filter((row) => row.product.store === store).length)}）
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <div className="toolbar-spacer" />
+            <span className="result-count">{count(rows.length)}商品</span>
+            <button type="button" className="btn-add" onClick={exportCsv} disabled={rows.length === 0}>
+              ⤓ CSV出力
+            </button>
+          </div>
+          {rows.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">⚖️</div>
+              <div className="empty-title">{base.length === 0 ? "比べられる商品がまだありません" : "条件に合う商品がありません"}</div>
+              {base.length === 0 && (
+                <div className="empty-desc">
+                  旧NE原価（旧原価在庫のメモ）があり、入庫一括で便の原価が登録された商品が、ここに並びます。
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="tbl-wrap">
+              <table className="tbl tbl--resizable" style={{ minWidth: fixedWidth + MIN_COL_WIDTH + 30 }}>
+                <colgroup>
+                  <col style={{ width: IMAGE_COL_WIDTH }} />
+                  {oldCostColumns.map((col, i) => (
+                    <col key={col.key} style={i === oldCostColumns.length - 1 ? undefined : { width: columnWidths.widthOf(col.key) }} />
+                  ))}
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th className="thumb-cell" aria-label="画像" />
+                    {oldCostColumns.map((col, i) => {
+                      const active = sort.key === col.key;
+                      return (
+                        <th
+                          key={col.key}
+                          className={col.num ? "num" : undefined}
+                          aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                        >
+                          <button
+                            type="button"
+                            className={`th-sort ${active ? "is-active" : ""}`}
+                            onClick={() => toggleSort(col.key)}
+                            title={
+                              col.key === "diff"
+                                ? "最新原価 − 旧原価（1個あたり）"
+                                : col.key === "impact"
+                                  ? "在庫数 × 差額（最新原価で計算した在庫金額 − 旧原価で計算した在庫金額）"
+                                  : col.key === "rate"
+                                    ? "差額 ÷ 旧原価"
+                                    : `${col.label}で並び替え`
+                            }
+                          >
+                            {col.label}
+                            <span className="th-sort-icon" aria-hidden="true">
+                              {active ? (sort.dir === "asc" ? "▲" : "▼") : "↕"}
+                            </span>
+                          </button>
+                          {i !== oldCostColumns.length - 1 && (
+                            <ColResizer
+                              label={col.label}
+                              onStart={(event) => columnWidths.startResize(col.key, event)}
+                              onReset={() => columnWidths.reset(col.key)}
+                            />
+                          )}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.slice(0, limit).map((row) => {
+                    const p = row.product;
+                    const isOpen = expanded === p.productCodeLc;
+                    return (
+                      <Fragment key={p.productCodeLc}>
+                        <tr className={`row-clickable ${isOpen ? "is-open" : ""}`} onClick={() => setExpanded(isOpen ? null : p.productCodeLc)}>
+                          <td className="thumb-cell">
+                            <ProductThumb row={p} onPreview={setPreview} />
+                          </td>
+                          {oldCostColumns.map((col) => {
+                            switch (col.key) {
+                              case "code":
+                                return (
+                                  <td key={col.key} className="code" title={p.productCode}>
+                                    <span className="chevron" aria-hidden="true">{isOpen ? "▾" : "▸"}</span>
+                                    {p.productCode}
+                                  </td>
+                                );
+                              case "name":
+                                return <td key={col.key} className="name" title={p.productName}>{p.productName}</td>;
+                              case "store":
+                                return (
+                                  <td key={col.key} title={p.goodsTag ?? "商品分類タグなし"}>
+                                    <StoreBadge store={p.store} order={storeOrder} />
+                                  </td>
+                                );
+                              case "qty":
+                                return <td key={col.key} className="num">{count(p.qty)}</td>;
+                              case "old":
+                                return <td key={col.key} className="num">{unitYen(row.oldCost)}</td>;
+                              case "latest":
+                                return <td key={col.key} className="num strong">{unitYen(row.latestCost)}</td>;
+                              case "diff":
+                                return (
+                                  <td key={col.key} className={`num ${costDiffClass(row.diff)}`}>
+                                    {costDiffText(row.diff, (v) => unitYen(v))}
+                                  </td>
+                                );
+                              case "rate":
+                                return <td key={col.key} className={`num ${costDiffClass(row.diff)}`}>{pctText(row.rate)}</td>;
+                              case "impact":
+                                return (
+                                  <td key={col.key} className={`num ${costDiffClass(row.impact)}`}>
+                                    {p.qty === 0 ? <span className="muted">—</span> : costDiffText(row.impact, yen)}
+                                  </td>
+                                );
+                            }
+                          })}
+                        </tr>
+                        {isOpen && (
+                          <tr className="detail-row">
+                            <td colSpan={oldCostColumns.length + 1}>
+                              <LotDetail productCodeLc={p.productCodeLc} />
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {rows.length > limit && (
+                <button type="button" className="more" onClick={() => setLimit((v) => v + 500)}>
+                  さらに表示（残り {count(rows.length - limit)}件）
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
+      {preview && (
+        <Modal title={preview.productCode} onClose={() => setPreview(null)}>
+          <div className="thumb-preview">
+            <img src={preview.imageUrl} alt={preview.productName || preview.productCode} />
+            {preview.productName && <p>{preview.productName}</p>}
+          </div>
+        </Modal>
+      )}
     </>
   );
 }
