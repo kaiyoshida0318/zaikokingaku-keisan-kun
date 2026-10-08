@@ -520,7 +520,7 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 .cmp-card h3 { font-size: 14px; margin: 0 0 8px; display: flex; align-items: baseline; gap: 8px; }
 .cmp-card h3 small { font-size: 11px; font-weight: 500; color: var(--light); }
 .cmp-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 2px; font-size: 13px; color: var(--muted); }
-.cmp-line b { font-size: 22px; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+.cmp-line b { font-size: 30px; color: var(--text); font-weight: 400; letter-spacing: -.01em; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .cmp-line--main { font-size: 13px; color: var(--text); font-weight: 600; }
 .cmp-line--main b { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: -.01em; line-height: 1.15; }
 .cmp-diff {
