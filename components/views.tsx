@@ -1733,17 +1733,14 @@ export function OldCostView({
       <main className="content">
         {top}
         <div className="cmp-scope">
-          <span className="cmp-scope-icon" aria-hidden="true">ⓘ</span>
-          <span>
-            <b>旧原価があり、便の原価も登録されている商品だけ</b>を比べています（{count(summary.n)}商品）。
-            <small>旧原価＝旧原価在庫のメモにある旧NE原価、最新原価＝入庫一括で登録したいちばん新しい便の原価</small>
-          </span>
+          <span className="cmp-scope-tag">対象</span>
+          <span className="cmp-scope-text">旧原価があり、新原価が登録されている商品のみ</span>
         </div>
         <div className="cmp-cards">
           <section className="cmp-card">
             <h3>在庫金額<small>今の在庫数 × 原価</small></h3>
+            <div className="cmp-line cmp-line--main"><span>最新原価で計算</span><b>{yen(summary.latestValue)}</b></div>
             <div className="cmp-line"><span>旧原価で計算</span><b>{yen(summary.oldValue)}</b></div>
-            <div className="cmp-line"><span>最新原価で計算</span><b>{yen(summary.latestValue)}</b></div>
             <div className="cmp-diff">
               <span>差</span>
               <b className={costDiffClass(valueDiff)}>{costDiffText(valueDiff, yen)}</b>
@@ -1752,8 +1749,8 @@ export function OldCostView({
           </section>
           <section className="cmp-card">
             <h3>平均原価<small>商品コード単位</small></h3>
+            <div className="cmp-line cmp-line--main"><span>最新原価</span><b>{unitYen(summary.latestAvg)}</b></div>
             <div className="cmp-line"><span>旧原価</span><b>{unitYen(summary.oldAvg)}</b></div>
-            <div className="cmp-line"><span>最新原価</span><b>{unitYen(summary.latestAvg)}</b></div>
             <div className="cmp-diff">
               <span>差</span>
               <b className={costDiffClass(avgDiff)}>{costDiffText(avgDiff, (v) => unitYen(v))}</b>

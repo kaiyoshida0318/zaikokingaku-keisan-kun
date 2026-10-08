@@ -517,27 +517,31 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px;
   display: flex; flex-direction: column; gap: 4px; box-shadow: var(--shadow);
 }
-.cmp-card h3 { font-size: 13px; margin: 0 0 6px; display: flex; align-items: baseline; gap: 8px; }
+.cmp-card h3 { font-size: 14px; margin: 0 0 8px; display: flex; align-items: baseline; gap: 8px; }
 .cmp-card h3 small { font-size: 11px; font-weight: 500; color: var(--light); }
-.cmp-line { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
-.cmp-line b { font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
+.cmp-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12px; color: var(--muted); }
+.cmp-line b { font-size: 18px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.cmp-line--main { font-size: 13px; color: var(--text); font-weight: 600; }
+.cmp-line--main b { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: -.01em; line-height: 1.15; }
 .cmp-diff {
   display: flex; align-items: baseline; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border-light);
   font-size: 12px; color: var(--muted);
 }
-.cmp-diff b { margin-left: auto; font-size: 20px; font-variant-numeric: tabular-nums; }
+.cmp-diff b { margin-left: auto; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .cmp-diff small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
-.cmp-count { font-size: 28px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cmp-count { font-size: 30px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .cmp-count span { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 4px; }
 .cmp-split { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-top: 4px; }
 .cmp-split b { font-variant-numeric: tabular-nums; }
 .cmp-scope {
-  display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px;
-  border: 1px solid #fbd5c4; border-radius: var(--radius); background: var(--primary-light); color: #7c2d12; font-size: 13px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 18px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
 }
-.cmp-scope b { color: var(--primary-dark); }
-.cmp-scope small { display: block; margin-top: 2px; font-size: 11px; color: #9a5b3f; }
-.cmp-scope-icon { font-size: 16px; line-height: 1.2; color: var(--primary); }
+.cmp-scope-tag {
+  padding: 3px 12px; border-radius: 999px; background: var(--text); color: #fff;
+  font-size: 12px; font-weight: 700; letter-spacing: .06em;
+}
+.cmp-scope-text { font-size: 15px; font-weight: 700; color: var(--text); }
 /* 原価が上がった（赤）・下がった（緑） */
 .cost-up { color: #b91c1c; }
 .cost-down { color: #047857; }
