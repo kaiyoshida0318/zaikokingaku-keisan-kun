@@ -2,6 +2,7 @@
 
 import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Modal from "./Modal";
+import PeriodBar, { inPeriod, periodLabel, resolvePeriod, type Period } from "./PeriodBar";
 import {
   fetchLots,
   fetchSnapshotItems,
@@ -35,13 +36,6 @@ import {
 /* 在庫推移(グラフ)                                                    */
 /* ------------------------------------------------------------------ */
 
-type TrendRange = "30" | "90" | "365" | "all";
-const TREND_RANGES: Array<[TrendRange, string]> = [
-  ["30", "30日"],
-  ["90", "90日"],
-  ["365", "1年"],
-  ["all", "すべて"],
-];
 const DAY_MS = 86_400_000;
 
 /** yyyy-mm-dd → その日0時（UTC）のミリ秒。日付だけを扱うので時差は気にしない */
@@ -176,22 +170,26 @@ function signedYen(value: number): string {
   return `${r > 0 ? "+" : r < 0 ? "−" : "±"}${yen(Math.abs(value))}`;
 }
 
-type TrendMode = "daily" | "monthly";
-type MonthRange = "12" | "24" | "all";
-const MONTH_RANGES: Array<[MonthRange, string]> = [
-  ["12", "12か月"],
-  ["24", "24か月"],
-  ["all", "すべて"],
-];
-
-export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow[]; tall?: boolean }) {
-  const [mode, setMode] = useState<TrendMode>("daily");
-  const [range, setRange] = useState<TrendRange>("90");
-  const [monthRange, setMonthRange] = useState<MonthRange>("12");
+export function TrendChart({
+  snapshots,
+  period,
+  onPeriodChange,
+  tall = false,
+}: {
+  snapshots: SnapshotRow[];
+  period: Period;
+  onPeriodChange: (next: Period) => void;
+  tall?: boolean;
+}) {
   const [hover, setHover] = useState<number | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(800);
-  const monthly = mode === "monthly";
+  const monthly = period.mode === "monthly";
+  const firstDate = useMemo(
+    () => snapshots.reduce<string | null>((min, row) => (min === null || row.snapshotDate < min ? row.snapshotDate : min), null),
+    [snapshots],
+  );
+  const range = resolvePeriod(period, firstDate);
 
   // 実際の幅で描く（引き伸ばすと文字や線がゆがむため）
   useEffect(() => {
@@ -211,14 +209,11 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
   );
   // 前の点からの増減と内訳（期間で切っても、いちばん左の点は1つ前の点と比べる）
   const changes = useMemo(() => snapshotChanges(snapshots, series), [snapshots, series]);
-  const points = useMemo(() => {
-    if (series.length === 0) return series;
-    if (monthly) return monthRange === "all" ? series : series.slice(-Number(monthRange));
-    if (range === "all") return series;
-    const last = dayMs(series[series.length - 1].snapshotDate);
-    const from = last - (Number(range) - 1) * DAY_MS;
-    return series.filter((p) => dayMs(p.snapshotDate) >= from);
-  }, [series, monthly, range, monthRange]);
+  // 選んでいる期間の点（表と同じ期間）
+  const points = useMemo(
+    () => series.filter((p) => inPeriod(p.snapshotDate, period.mode, range)),
+    [series, period.mode, range.from, range.to],
+  );
 
   // 吹き出しの店舗の色（商品一覧のバッジと同じ並び）
   const storeOrder = useMemo(() => {
@@ -227,38 +222,18 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
     return sortStores(value.keys(), (store) => value.get(store) ?? 0);
   }, [snapshots]);
 
-  function switchMode(next: TrendMode) {
-    setMode(next);
+  function changePeriod(next: Period) {
     setHover(null);
+    onPeriodChange(next);
   }
 
   const header = (
-    <div className="panel-head trend-head">
-      <h2>📈 在庫金額の推移</h2>
-      <div className="trend-controls">
-        <div className="seg" role="group" aria-label="日別・月別">
-          <button type="button" className={!monthly ? "active" : ""} onClick={() => switchMode("daily")}>
-            日別
-          </button>
-          <button type="button" className={monthly ? "active" : ""} onClick={() => switchMode("monthly")}>
-            月別(月末時)
-          </button>
-        </div>
-        <div className="seg" role="group" aria-label="期間">
-          {monthly
-            ? MONTH_RANGES.map(([key, label]) => (
-                <button key={key} type="button" className={monthRange === key ? "active" : ""} onClick={() => { setMonthRange(key); setHover(null); }}>
-                  {label}
-                </button>
-              ))
-            : TREND_RANGES.map(([key, label]) => (
-                <button key={key} type="button" className={range === key ? "active" : ""} onClick={() => { setRange(key); setHover(null); }}>
-                  {label}
-                </button>
-              ))}
-        </div>
+    <>
+      <div className="panel-head trend-head">
+        <h2>📈 在庫金額の推移</h2>
       </div>
-    </div>
+      <PeriodBar period={period} onChange={changePeriod} firstDate={firstDate} />
+    </>
   );
 
   // 点の呼び名：日別は日付、月別は「2026/10（10/07時点）」
@@ -266,18 +241,23 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
     monthly ? `${p.snapshotDate.slice(0, 4)}/${p.snapshotDate.slice(5, 7)}（${p.snapshotDate.slice(5, 7)}/${p.snapshotDate.slice(8, 10)}時点）` : dateOnly(p.snapshotDate);
 
   if (points.length < 2) {
-    const only = points[0] ?? series[series.length - 1];
+    const only = points[0] ?? null;
+    const unit = monthly ? "か月" : "日";
     return (
       <div className={`panel trend ${tall ? "trend--tall" : ""}`}>
         {header}
         <p className="panel-empty">
-          {monthly
-            ? series.length < 2
-              ? `月別は2か月分以上の記録がたまると表示されます。${only ? `今は ${pointLabel(only)} の ${yen(only.totalValueJpy)} の1か月分です。` : ""}`
-              : "この期間の記録が2か月分未満です。期間を広げてください。"
-            : series.length < 2
-              ? "照合が2日分以上たまると表示されます（毎日 21:05 に自動で照合します）。"
-              : "この期間の記録が2日分未満です。期間を広げてください。"}
+          {series.length < 2
+            ? monthly
+              ? "月別は2か月分以上の記録がたまると線になります。"
+              : "照合が2日分以上たまると線になります（毎日 21:05 に自動で照合します）。"
+            : `${periodLabel(range)} の記録が2${unit}分未満なので線を引けません。期間を広げてください。`}
+          {only && (
+            <>
+              {" "}
+              {pointLabel(only)}：<b>{yen(only.totalValueJpy)}</b>
+            </>
+          )}
         </p>
       </div>
     );
@@ -442,11 +422,21 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
 }
 
 /** 在庫推移(グラフ)タブ */
-export function TrendView({ snapshots, top }: { snapshots: SnapshotRow[]; top: ReactNode }) {
+export function TrendView({
+  snapshots,
+  period,
+  onPeriodChange,
+  top,
+}: {
+  snapshots: SnapshotRow[];
+  period: Period;
+  onPeriodChange: (next: Period) => void;
+  top: ReactNode;
+}) {
   return (
     <main className="content">
       {top}
-      <TrendChart snapshots={snapshots} tall />
+      <TrendChart snapshots={snapshots} period={period} onPeriodChange={onPeriodChange} tall />
     </main>
   );
 }
@@ -1212,25 +1202,25 @@ export function ShipmentsView({ shipments, top }: { shipments: ShipmentRow[]; to
 /* スナップショット                                                     */
 /* ------------------------------------------------------------------ */
 
-export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; top: ReactNode }) {
+export function SnapshotsView({
+  snapshots,
+  period,
+  onPeriodChange,
+  top,
+}: {
+  snapshots: SnapshotRow[];
+  period: Period;
+  onPeriodChange: (next: Period) => void;
+  top: ReactNode;
+}) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [monthEndOnly, setMonthEndOnly] = useState(false);
-  // 表示する月（yyyy-mm）。null はすべての月
-  const [pickedMonths, setPickedMonths] = useState<Set<string> | null>(null);
-
-  // 記録がある月（新しい順）
-  const months = useMemo(() => [...new Set(snapshots.map((row) => row.snapshotDate.slice(0, 7)))], [snapshots]);
-  const isPicked = (month: string) => pickedMonths === null || pickedMonths.has(month);
-
-  function toggleMonth(month: string) {
-    setPickedMonths((current) => {
-      const next = new Set(current ?? months);
-      if (next.has(month)) next.delete(month);
-      else next.add(month);
-      return next.size === months.length ? null : next;
-    });
-  }
+  const monthEndOnly = period.mode === "monthly";
+  const firstDate = useMemo(
+    () => snapshots.reduce<string | null>((min, row) => (min === null || row.snapshotDate < min ? row.snapshotDate : min), null),
+    [snapshots],
+  );
+  const range = resolvePeriod(period, firstDate);
 
   // 日別ならすべての記録、月別なら各月の最後の記録（月末時点）。新しい順
   const series = useMemo(
@@ -1241,9 +1231,10 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
   // 1つ前（日別は前日、月別は前月末）との比較。入庫・出荷はその間の記録ごとの出入りを合計する（グラフと同じ計算）
   const changes = useMemo(() => snapshotChanges(snapshots, series), [snapshots, series]);
 
+  // 選んでいる期間の行（グラフと同じ期間）
   const rows = useMemo(
-    () => series.filter((row) => pickedMonths === null || pickedMonths.has(row.snapshotDate.slice(0, 7))),
-    [series, pickedMonths],
+    () => series.filter((row) => inPeriod(row.snapshotDate, period.mode, range)),
+    [series, period.mode, range.from, range.to],
   );
 
   // 記録に出てくる店舗（店舗に対応する前の記録には内訳がない）
@@ -1288,7 +1279,7 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
           ];
         }),
       ),
-      `在庫推移_${monthEndOnly ? "月別" : "日別"}_${todayJst()}.csv`,
+      `在庫推移_${monthEndOnly ? "月別" : "日別"}_${range.from}〜${range.to}.csv`,
     );
   }
 
@@ -1380,14 +1371,6 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
         <div className="panel">
           <div className="panel-toolbar">
             <h2>📅 在庫推移(表)</h2>
-            <div className="seg" role="group" aria-label="表示">
-              <button type="button" className={!monthEndOnly ? "active" : ""} onClick={() => setMonthEndOnly(false)}>
-                日別
-              </button>
-              <button type="button" className={monthEndOnly ? "active" : ""} onClick={() => setMonthEndOnly(true)}>
-                月別(月末時)
-              </button>
-            </div>
             <p className="toolbar-note">1日1件。同じ日に何度照合しても最後の結果で上書きされます。</p>
             <div className="toolbar-spacer" />
             <span className="result-count">{count(rows.length)}件</span>
@@ -1395,23 +1378,7 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
               ⤓ 一覧CSV
             </button>
           </div>
-          {months.length > 0 && (
-            <div className="month-filter">
-              <span className="month-filter-label">表示する月</span>
-              {months.map((month) => (
-                <label key={month} className={`month-chip ${isPicked(month) ? "is-on" : ""}`}>
-                  <input type="checkbox" checked={isPicked(month)} onChange={() => toggleMonth(month)} />
-                  {month.replace("-", "/")}
-                </label>
-              ))}
-              <button type="button" className="text-btn" onClick={() => setPickedMonths(null)} disabled={pickedMonths === null}>
-                すべて
-              </button>
-              <button type="button" className="text-btn" onClick={() => setPickedMonths(new Set())} disabled={pickedMonths?.size === 0}>
-                すべて外す
-              </button>
-            </div>
-          )}
+          <PeriodBar period={period} onChange={onPeriodChange} firstDate={firstDate} />
       {snapshots.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📅</div>
@@ -1446,7 +1413,7 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={snapshotColumns.length + 1} className="month-empty">表示する月を選んでください</td>
+                <td colSpan={snapshotColumns.length + 1} className="month-empty">{periodLabel(range)} の記録はありません</td>
               </tr>
             )}
             {rows.map((row) => (

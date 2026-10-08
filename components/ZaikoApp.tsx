@@ -27,6 +27,7 @@ import {
 import { getSupabaseConfigError, NE_SYNC_WORKER_URL, supabase, ZAIKO_AUTH_STORAGE_KEY } from "@/lib/supabaseClient";
 import { APP_BUILT_AT, APP_COMMIT, APP_VERSION, fetchNewerVersion, type PublishedVersion } from "@/lib/version";
 import BrandMark from "./BrandMark";
+import { DEFAULT_PERIOD, type Period } from "./PeriodBar";
 import SettingsPanel from "./SettingsPanel";
 import SyncModal from "./SyncModal";
 import InventorySummary from "./InventorySummary";
@@ -56,6 +57,8 @@ export default function ZaikoApp() {
   const [reauthUrl, setReauthUrl] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
+  // 在庫推移の表示期間（表とグラフで共通）
+  const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
   // 原価の小数点の丸め（変えると単価の表示がすべて描き直される）
   const [rounding, setRounding] = useState<CostRounding>(DEFAULT_COST_ROUNDING);
   useEffect(() => {
@@ -282,8 +285,8 @@ export default function ZaikoApp() {
         <>
           {tab === "products" && <ProductsView products={products} top={top} />}
           {tab === "shipments" && <ShipmentsView shipments={shipments} top={top} />}
-          {tab === "snapshots" && <SnapshotsView snapshots={snapshots} top={top} />}
-          {tab === "trend" && <TrendView snapshots={snapshots} top={top} />}
+          {tab === "snapshots" && <SnapshotsView snapshots={snapshots} period={period} onPeriodChange={setPeriod} top={top} />}
+          {tab === "trend" && <TrendView snapshots={snapshots} period={period} onPeriodChange={setPeriod} top={top} />}
           {tab === "logs" && <LogsView logs={logs} top={top} />}
         </>
       )}
