@@ -47,7 +47,7 @@ export default function ZaikoApp() {
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
   // 旧NE原価（商品コード小文字 → 原価）。旧原価との比較タブで使う
-  const [oldCostData, setOldCostData] = useState<OldCostData>({ oldCost: {}, latestShipment: {} });
+  const [oldCostData, setOldCostData] = useState<OldCostData>({ oldCost: {} });
   const [loading, setLoading] = useState(false);
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);

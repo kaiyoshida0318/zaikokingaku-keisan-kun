@@ -1561,25 +1561,25 @@ type OldCostRow = {
   product: ProductRow;
   oldCost: number; // 旧NE原価
   latestCost: number; // 最新の便の原価
-  shipmentId: string | null; // 最新の便
   diff: number; // 最新 − 旧（1個あたり）
   rate: number | null; // 差額率（旧原価に対して）
   impact: number; // 在庫数 × 差額
 };
-type OldCostSortKey = "abs" | "code" | "name" | "store" | "shipment" | "qty" | "old" | "latest" | "diff" | "rate" | "impact";
+type OldCostSortKey = "code" | "name" | "store" | "qty" | "old" | "latest" | "diff" | "rate" | "impact" | "abs";
 type OldCostFilter = "all" | "up" | "down";
 
-const oldCostColumns: { key: Exclude<OldCostSortKey, "abs">; label: string; num?: boolean; firstDir: SortDir; width: number }[] = [
+// 列はすべて決まった幅。表の右側の余りは最後の空の列が受け持つ（数字が右端に寄りすぎないように）
+const oldCostColumns: { key: OldCostSortKey; label: string; num?: boolean; firstDir: SortDir; width: number }[] = [
   { key: "code", label: "商品コード", firstDir: "asc", width: 210 },
   { key: "name", label: "商品名", firstDir: "asc", width: 240 },
   { key: "store", label: "店舗", firstDir: "asc", width: 140 },
-  { key: "shipment", label: "最新の便", firstDir: "desc", width: 170 },
   { key: "qty", label: "在庫数", num: true, firstDir: "desc", width: 90 },
   { key: "old", label: "旧原価", num: true, firstDir: "desc", width: 100 },
   { key: "latest", label: "最新原価", num: true, firstDir: "desc", width: 100 },
   { key: "diff", label: "差額", num: true, firstDir: "desc", width: 100 },
   { key: "rate", label: "差額率", num: true, firstDir: "desc", width: 90 },
   { key: "impact", label: "在庫金額の差", num: true, firstDir: "desc", width: 130 },
+  { key: "abs", label: "影響値（絶対値）", num: true, firstDir: "desc", width: 140 },
 ];
 
 /** 原価の差の向き。1銭（0.01円）未満は「同じ」。表示の丸めで0円に見える差も、上がった・下がったに数える */
@@ -1630,17 +1630,16 @@ export function OldCostView({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<OldCostFilter>("all");
   const [storeFilter, setStoreFilter] = useState<string | null>(null);
-  const [shipmentFilter, setShipmentFilter] = useState<string | null>(null);
   const [preview, setPreview] = useState<ProductRow | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [limit, setLimit] = useState(200);
-  // 最初は「影響の大きい順」（在庫金額の差の大きさ。プラスもマイナスも大きいものから）
+  // 最初は影響値（在庫金額の差の絶対値）の大きい順。プラスもマイナスも、ズレの大きい商品から
   const [sort, setSort] = useState<{ key: OldCostSortKey; dir: SortDir }>({ key: "abs", dir: "desc" });
   const columnWidths = useColumnWidths(
     "zaiko_oldcost_col_widths",
     Object.fromEntries(oldCostColumns.map((col) => [col.key, col.width])),
   );
-  const fixedWidth = IMAGE_COL_WIDTH + oldCostColumns.slice(0, -1).reduce((sum, col) => sum + columnWidths.widthOf(col.key), 0);
+  const fixedWidth = IMAGE_COL_WIDTH + oldCostColumns.reduce((sum, col) => sum + columnWidths.widthOf(col.key), 0);
 
   // 対象：旧NE原価があり、入庫一括で便の原価（新原価）も登録されている商品
   const base = useMemo<OldCostRow[]>(
@@ -1655,7 +1654,6 @@ export function OldCostView({
             product,
             oldCost,
             latestCost,
-            shipmentId: data.latestShipment[product.productCodeLc] ?? null,
             diff,
             rate: oldCost > 0 ? diff / oldCost : null,
             impact: product.qty * diff,
@@ -1707,18 +1705,12 @@ export function OldCostView({
     return sortStores(value.keys(), (store) => value.get(store) ?? 0);
   }, [products]);
   const storesInBase = useMemo(() => storeOrder.filter((store) => base.some((row) => row.product.store === store)), [storeOrder, base]);
-  // 最新の便（新しい順）と、その便が最新の商品の数
-  const shipments = useMemo(() => {
-    const countBy = new Map<string, number>();
-    for (const row of base) if (row.shipmentId) countBy.set(row.shipmentId, (countBy.get(row.shipmentId) ?? 0) + 1);
-    return [...countBy.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [base]);
 
   function toggleSort(key: OldCostSortKey) {
     setSort((current) =>
       current.key === key
         ? { key, dir: current.dir === "asc" ? "desc" : "asc" }
-        : { key, dir: key === "abs" ? "desc" : (oldCostColumns.find((col) => col.key === key)?.firstDir ?? "asc") },
+        : { key, dir: oldCostColumns.find((col) => col.key === key)?.firstDir ?? "asc" },
     );
   }
 
@@ -1728,7 +1720,6 @@ export function OldCostView({
       if (filter === "up" && diffSign(row.diff) <= 0) return false;
       if (filter === "down" && diffSign(row.diff) >= 0) return false;
       if (storeFilter !== null && row.product.store !== storeFilter) return false;
-      if (shipmentFilter !== null && row.shipmentId !== shipmentFilter) return false;
       if (!q) return true;
       return row.product.productCodeLc.includes(q) || row.product.productName.toLowerCase().includes(q);
     });
@@ -1738,7 +1729,6 @@ export function OldCostView({
         case "code": return row.product.productCodeLc;
         case "name": return row.product.productName;
         case "store": return row.product.store;
-        case "shipment": return row.shipmentId ?? "";
         case "qty": return row.product.qty;
         case "old": return row.oldCost;
         case "latest": return row.latestCost;
@@ -1754,26 +1744,26 @@ export function OldCostView({
       const c = typeof va === "string" ? textCollator.compare(va, vb as string) : va - (vb as number);
       return sign * c || a.product.productCodeLc.localeCompare(b.product.productCodeLc);
     });
-  }, [base, query, filter, storeFilter, shipmentFilter, sort]);
+  }, [base, query, filter, storeFilter, sort]);
 
   function exportCsv() {
     downloadBlob(
       csvBlob(
-        ["商品コード", "商品名", "店舗", "最新の便", "在庫数", "旧原価", "最新原価", "差額", "差額率(%)", "在庫金額の差"],
+        ["商品コード", "商品名", "店舗", "在庫数", "旧原価", "最新原価", "差額", "差額率(%)", "在庫金額の差", "影響値（絶対値）"],
         rows.map((row) => [
           row.product.productCode,
           row.product.productName,
           row.product.store,
-          row.shipmentId ?? "",
           row.product.qty,
           csv2(row.oldCost),
           csv2(row.latestCost),
           csv2(row.diff),
           row.rate === null ? "" : Math.round(row.rate * 1000) / 10,
           Math.round(row.impact),
+          Math.round(Math.abs(row.impact)),
         ]),
       ),
-      `旧原価との比較${storeFilter ? `_${storeFilter}` : ""}${shipmentFilter ? `_${shipmentFilter}` : ""}_${todayJst()}.csv`,
+      `旧原価との比較${storeFilter ? `_${storeFilter}` : ""}_${todayJst()}.csv`,
     );
   }
 
@@ -1800,11 +1790,11 @@ export function OldCostView({
             </div>
             <div className="cmp-breakdown">
               <span>
-                上がった商品の分
+                原価上昇分
                 <b className="cost-up">{moneyDiffText(summary.upValue)}</b>
               </span>
               <span>
-                下がった商品の分
+                原価下落分
                 <b className="cost-down">{moneyDiffText(summary.downValue)}</b>
               </span>
             </div>
@@ -1880,33 +1870,6 @@ export function OldCostView({
                 </select>
               </label>
             )}
-            {shipments.length > 1 && (
-              <label className="store-select">
-                <span>最新の便</span>
-                <select
-                  value={shipmentFilter ?? ""}
-                  onChange={(event) => {
-                    setShipmentFilter(event.target.value || null);
-                    setLimit(200);
-                  }}
-                >
-                  <option value="">すべての便</option>
-                  {shipments.map(([id, n]) => (
-                    <option key={id} value={id}>
-                      {shipmentLabel(id)}（{count(n)}）
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <button
-              type="button"
-              className={`period-chip ${sort.key === "abs" ? "is-on" : ""}`}
-              onClick={() => setSort({ key: "abs", dir: "desc" })}
-              title="在庫金額の差の大きさの順（プラスもマイナスも、ズレの大きい商品から）"
-            >
-              影響の大きい順
-            </button>
             <div className="toolbar-spacer" />
             <span className="result-count">{count(rows.length)}商品</span>
             <button type="button" className="btn-add" onClick={exportCsv} disabled={rows.length === 0}>
@@ -1928,14 +1891,15 @@ export function OldCostView({
               <table className="tbl tbl--resizable" style={{ minWidth: fixedWidth + MIN_COL_WIDTH + 30 }}>
                 <colgroup>
                   <col style={{ width: IMAGE_COL_WIDTH }} />
-                  {oldCostColumns.map((col, i) => (
-                    <col key={col.key} style={i === oldCostColumns.length - 1 ? undefined : { width: columnWidths.widthOf(col.key) }} />
+                  {oldCostColumns.map((col) => (
+                    <col key={col.key} style={{ width: columnWidths.widthOf(col.key) }} />
                   ))}
+                  <col />
                 </colgroup>
                 <thead>
                   <tr>
                     <th className="thumb-cell" aria-label="画像" />
-                    {oldCostColumns.map((col, i) => {
+                    {oldCostColumns.map((col) => {
                       const active = sort.key === col.key;
                       return (
                         <th
@@ -1954,8 +1918,8 @@ export function OldCostView({
                                   ? "在庫数 × 差額（最新原価で計算した在庫金額 − 旧原価で計算した在庫金額）"
                                   : col.key === "rate"
                                     ? "差額 ÷ 旧原価"
-                                    : col.key === "shipment"
-                                      ? "最新原価の出どころ（いちばん新しい便）"
+                                    : col.key === "abs"
+                                      ? "在庫金額の差の絶対値（プラス・マイナスに関係なく、ズレの大きさ）"
                                       : `${col.label}で並び替え`
                             }
                           >
@@ -1964,16 +1928,15 @@ export function OldCostView({
                               {active ? (sort.dir === "asc" ? "▲" : "▼") : "↕"}
                             </span>
                           </button>
-                          {i !== oldCostColumns.length - 1 && (
-                            <ColResizer
-                              label={col.label}
-                              onStart={(event) => columnWidths.startResize(col.key, event)}
-                              onReset={() => columnWidths.reset(col.key)}
-                            />
-                          )}
+                          <ColResizer
+                            label={col.label}
+                            onStart={(event) => columnWidths.startResize(col.key, event)}
+                            onReset={() => columnWidths.reset(col.key)}
+                          />
                         </th>
                       );
                     })}
+                    <th aria-hidden="true" />
                   </tr>
                 </thead>
                 <tbody>
@@ -2006,8 +1969,6 @@ export function OldCostView({
                                     <StoreBadge store={p.store} order={storeOrder} />
                                   </td>
                                 );
-                              case "shipment":
-                                return <td key={col.key}><ShipmentCell id={row.shipmentId} /></td>;
                               case "qty":
                                 return <td key={col.key} className="num">{count(p.qty)}</td>;
                               case "old":
@@ -2024,12 +1985,19 @@ export function OldCostView({
                                     {p.qty === 0 ? <span className="muted">—</span> : moneyDiffText(row.impact)}
                                   </td>
                                 );
+                              case "abs":
+                                return (
+                                  <td key={col.key} className="num strong">
+                                    {p.qty === 0 ? <span className="muted">—</span> : yen(Math.abs(row.impact))}
+                                  </td>
+                                );
                             }
                           })}
+                          <td aria-hidden="true" />
                         </tr>
                         {isOpen && (
                           <tr className="detail-row">
-                            <td colSpan={oldCostColumns.length + 1}>
+                            <td colSpan={oldCostColumns.length + 2}>
                               <LotDetail productCodeLc={p.productCodeLc} />
                             </td>
                           </tr>

@@ -188,48 +188,28 @@ export async function fetchProducts(): Promise<ProductRow[]> {
 export type OldCostData = {
   /** 商品コード小文字 → 旧NE原価（旧原価在庫のメモ。バックアップから入れた、便の原価に置き換える前のNEの原価） */
   oldCost: Record<string, number>;
-  /** 商品コード小文字 → いちばん新しい便の配送依頼書番号（最新原価の出どころ。商品一覧の「最新の便の原価」と同じ便） */
-  latestShipment: Record<string, string>;
 };
 
 /** 旧原価との比較のデータ。列がまだない・読めないときは空 */
 export async function fetchOldCostData(): Promise<OldCostData> {
   const db = client();
   type Raw = Record<string, unknown>;
-  const [olds, lots] = await Promise.all([
-    fetchAll<Raw>((from, to) =>
-      db
-        .from("cost_lots")
-        .select("id,product_code_lc,pre_app_cost")
-        .eq("lot_type", "opening")
-        .not("pre_app_cost", "is", null)
-        .order("id")
-        .range(from, to),
-    ).catch(() => [] as Raw[]),
-    // cost_inventory_by_product の latest_unit_cost と同じ並び（登録日の新しい順 → id の大きい順）
-    fetchAll<Raw>((from, to) =>
-      db
-        .from("cost_lots")
-        .select("id,product_code_lc,shipment_id,received_at")
-        .eq("lot_type", "shipment")
-        .order("received_at", { ascending: false })
-        .order("id", { ascending: false })
-        .range(from, to),
-    ).catch(() => [] as Raw[]),
-  ]);
+  const olds = await fetchAll<Raw>((from, to) =>
+    db
+      .from("cost_lots")
+      .select("id,product_code_lc,pre_app_cost")
+      .eq("lot_type", "opening")
+      .not("pre_app_cost", "is", null)
+      .order("id")
+      .range(from, to),
+  ).catch(() => [] as Raw[]);
   const oldCost: Record<string, number> = {};
   for (const row of olds) {
     const code = String(row.product_code_lc ?? "");
     const cost = numOrNull(row.pre_app_cost);
     if (code && cost !== null && !(code in oldCost)) oldCost[code] = cost;
   }
-  const latestShipment: Record<string, string> = {};
-  for (const row of lots) {
-    const code = String(row.product_code_lc ?? "");
-    const id = String(row.shipment_id ?? "");
-    if (code && id && !(code in latestShipment)) latestShipment[code] = id;
-  }
-  return { oldCost, latestShipment };
+  return { oldCost };
 }
 
 /** cost_lots に埋め込んだ cost_shipments(rate) からレートを取り出す（0・不明は null） */
