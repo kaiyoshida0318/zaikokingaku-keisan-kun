@@ -548,6 +548,21 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
   font-size: 12px; font-weight: 700; letter-spacing: .06em;
 }
 .cmp-scope-text { font-size: 15px; font-weight: 700; color: var(--text); }
+/* 最新原価（藍）・旧原価（琥珀）の色分け。数字は読みやすい黒のまま、目印の色と背景で見分ける */
+:root { --c-new: #4f46e5; --c-new-bg: #f3f4ff; --c-new-head: #e8e9fd; --c-old: #d97706; --c-old-bg: #fffaf0; --c-old-head: #fdf0d9; }
+.cmp-key { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; flex: none; }
+.cmp-new .cmp-key { background: var(--c-new); }
+.cmp-old .cmp-key { background: var(--c-old); }
+.cmp-line.cmp-new, .cmp-line.cmp-old { padding: 6px 10px; border-radius: var(--radius-sm); border-left: 3px solid; }
+.cmp-line.cmp-new { background: var(--c-new-bg); border-left-color: var(--c-new); }
+.cmp-line.cmp-old { background: var(--c-old-bg); border-left-color: var(--c-old); margin-top: 6px; }
+.cmp-line span { display: inline-flex; align-items: center; }
+.tbl td.cmp-new { background: var(--c-new-bg); }
+.tbl td.cmp-old { background: var(--c-old-bg); }
+.tbl th.cmp-new { background: var(--c-new-head); }
+.tbl th.cmp-old { background: var(--c-old-head); }
+.tbl tr.row-clickable:hover td.cmp-new { background: #e9eafd; }
+.tbl tr.row-clickable:hover td.cmp-old { background: #fdf2dc; }
 /* 原価が上がった（赤）・下がった（緑） */
 .cost-up { color: #b91c1c; }
 .cost-down { color: #047857; }

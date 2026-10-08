@@ -1613,6 +1613,11 @@ function pctText(value: number | null): string {
   const r = Math.round(value * 1000) / 10;
   return `${r > 0 ? "+" : r < 0 ? "−" : "±"}${Math.abs(r).toFixed(1)}%`;
 }
+/** 最新原価・旧原価の列の色分け（最新＝藍、旧＝琥珀） */
+function colTone(key: OldCostSortKey): string {
+  return key === "latest" ? "cmp-new" : key === "old" ? "cmp-old" : "";
+}
+
 /** CSV向け：小数2桁（丸めの設定に関係なく） */
 function csv2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -1781,8 +1786,8 @@ export function OldCostView({
         <div className="cmp-cards">
           <section className="cmp-card">
             <h3>在庫金額<small>今の在庫数 × 原価</small></h3>
-            <div className="cmp-line cmp-line--main"><span>最新原価で計算</span><b>{yen(summary.latestValue)}</b></div>
-            <div className="cmp-line"><span>旧原価で計算</span><b>{yen(summary.oldValue)}</b></div>
+            <div className="cmp-line cmp-line--main cmp-new"><span><i className="cmp-key" aria-hidden="true" />最新原価で計算</span><b>{yen(summary.latestValue)}</b></div>
+            <div className="cmp-line cmp-old"><span><i className="cmp-key" aria-hidden="true" />旧原価で計算</span><b>{yen(summary.oldValue)}</b></div>
             <div className="cmp-diff">
               <span>差</span>
               <b className={diffClass(valueDiff)}>{moneyDiffText(valueDiff)}</b>
@@ -1801,8 +1806,8 @@ export function OldCostView({
           </section>
           <section className="cmp-card">
             <h3>平均原価<small>商品コード単位</small></h3>
-            <div className="cmp-line cmp-line--main"><span>最新原価平均</span><b>{unitYen(summary.latestAvg)}</b></div>
-            <div className="cmp-line"><span>旧原価平均</span><b>{unitYen(summary.oldAvg)}</b></div>
+            <div className="cmp-line cmp-line--main cmp-new"><span><i className="cmp-key" aria-hidden="true" />最新原価平均</span><b>{unitYen(summary.latestAvg)}</b></div>
+            <div className="cmp-line cmp-old"><span><i className="cmp-key" aria-hidden="true" />旧原価平均</span><b>{unitYen(summary.oldAvg)}</b></div>
             <div className="cmp-diff">
               <span>差</span>
               <b className={diffClass(avgDiff)}>{unitDiffText(avgDiff)}</b>
@@ -1904,7 +1909,7 @@ export function OldCostView({
                       return (
                         <th
                           key={col.key}
-                          className={col.num ? "num" : undefined}
+                          className={[col.num ? "num" : "", colTone(col.key)].filter(Boolean).join(" ") || undefined}
                           aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                         >
                           <button
@@ -1923,6 +1928,7 @@ export function OldCostView({
                                       : `${col.label}で並び替え`
                             }
                           >
+                            {colTone(col.key) && <i className="cmp-key" aria-hidden="true" />}
                             {col.label}
                             <span className="th-sort-icon" aria-hidden="true">
                               {active ? (sort.dir === "asc" ? "▲" : "▼") : "↕"}
@@ -1972,9 +1978,9 @@ export function OldCostView({
                               case "qty":
                                 return <td key={col.key} className="num">{count(p.qty)}</td>;
                               case "old":
-                                return <td key={col.key} className="num">{costText(row.oldCost)}</td>;
+                                return <td key={col.key} className="num cmp-old">{costText(row.oldCost)}</td>;
                               case "latest":
-                                return <td key={col.key} className="num strong">{costText(row.latestCost)}</td>;
+                                return <td key={col.key} className="num strong cmp-new">{costText(row.latestCost)}</td>;
                               case "diff":
                                 return <td key={col.key} className={`num ${diffClass(row.diff)}`}>{unitDiffText(row.diff)}</td>;
                               case "rate":
