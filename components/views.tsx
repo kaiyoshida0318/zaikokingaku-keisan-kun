@@ -1574,8 +1574,8 @@ const oldCostColumns: { key: OldCostSortKey; label: string; num?: boolean; first
   { key: "name", label: "商品名", firstDir: "asc", width: 240 },
   { key: "store", label: "店舗", firstDir: "asc", width: 140 },
   { key: "qty", label: "在庫数", num: true, firstDir: "desc", width: 90 },
-  { key: "old", label: "旧原価", num: true, firstDir: "desc", width: 100 },
   { key: "latest", label: "最新原価", num: true, firstDir: "desc", width: 100 },
+  { key: "old", label: "旧原価", num: true, firstDir: "desc", width: 100 },
   { key: "diff", label: "差額", num: true, firstDir: "desc", width: 100 },
   { key: "rate", label: "差額率", num: true, firstDir: "desc", width: 90 },
   { key: "impact", label: "在庫金額の差", num: true, firstDir: "desc", width: 130 },
@@ -1749,14 +1749,14 @@ export function OldCostView({
   function exportCsv() {
     downloadBlob(
       csvBlob(
-        ["商品コード", "商品名", "店舗", "在庫数", "旧原価", "最新原価", "差額", "差額率(%)", "在庫金額の差", "影響値（絶対値）"],
+        ["商品コード", "商品名", "店舗", "在庫数", "最新原価", "旧原価", "差額", "差額率(%)", "在庫金額の差", "影響値（絶対値）"],
         rows.map((row) => [
           row.product.productCode,
           row.product.productName,
           row.product.store,
           row.product.qty,
-          csv2(row.oldCost),
           csv2(row.latestCost),
+          csv2(row.oldCost),
           csv2(row.diff),
           row.rate === null ? "" : Math.round(row.rate * 1000) / 10,
           Math.round(row.impact),
@@ -1790,19 +1790,19 @@ export function OldCostView({
             </div>
             <div className="cmp-breakdown">
               <span>
-                原価上昇分
+                上昇商品の増加額
                 <b className="cost-up">{moneyDiffText(summary.upValue)}</b>
               </span>
               <span>
-                原価下落分
+                下落商品の減少額
                 <b className="cost-down">{moneyDiffText(summary.downValue)}</b>
               </span>
             </div>
           </section>
           <section className="cmp-card">
             <h3>平均原価<small>商品コード単位</small></h3>
-            <div className="cmp-line cmp-line--main"><span>最新原価</span><b>{unitYen(summary.latestAvg)}</b></div>
-            <div className="cmp-line"><span>旧原価</span><b>{unitYen(summary.oldAvg)}</b></div>
+            <div className="cmp-line cmp-line--main"><span>最新原価平均</span><b>{unitYen(summary.latestAvg)}</b></div>
+            <div className="cmp-line"><span>旧原価平均</span><b>{unitYen(summary.oldAvg)}</b></div>
             <div className="cmp-diff">
               <span>差</span>
               <b className={diffClass(avgDiff)}>{unitDiffText(avgDiff)}</b>
