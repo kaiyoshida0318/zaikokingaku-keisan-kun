@@ -182,7 +182,8 @@ export function TrendChart({
   tall?: boolean;
 }) {
   const [hover, setHover] = useState<number | null>(null);
-  const boxRef = useRef<HTMLDivElement>(null);
+  // 幅を測る枠（グラフがない表示のときも残る外枠で測る。中だけで測ると、グラフが消えて戻ったときに幅を見失う）
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(800);
   const monthly = period.mode === "monthly";
   const firstDate = useMemo(
@@ -193,14 +194,15 @@ export function TrendChart({
 
   // 実際の幅で描く（引き伸ばすと文字や線がゆがむため）
   useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const update = () => setWidth(Math.max(320, Math.round(el.getBoundingClientRect().width)));
+    if (!box) return;
+    const update = () => {
+      if (box.clientWidth > 0) setWidth(Math.max(320, box.clientWidth));
+    };
     update();
     const observer = new ResizeObserver(update);
-    observer.observe(el);
+    observer.observe(box);
     return () => observer.disconnect();
-  }, []);
+  }, [box]);
 
   // 日別はすべての記録、月別は各月の最後の記録（古い順）
   const series = useMemo(
@@ -244,7 +246,7 @@ export function TrendChart({
     const only = points[0] ?? null;
     const unit = monthly ? "か月" : "日";
     return (
-      <div className={`panel trend ${tall ? "trend--tall" : ""}`}>
+      <div className={`panel trend ${tall ? "trend--tall" : ""}`} ref={setBox}>
         {header}
         <p className="panel-empty">
           {series.length < 2
@@ -330,9 +332,9 @@ export function TrendChart({
   const tipTop = active ? Math.min(Math.max(8, active.cy - 20), H - tipHeight) : 0;
 
   return (
-    <div className={`panel trend ${tall ? "trend--tall" : ""}`}>
+    <div className={`panel trend ${tall ? "trend--tall" : ""}`} ref={setBox}>
       {header}
-      <div className="trend-body" ref={boxRef}>
+      <div className="trend-body">
         <svg className="trend-svg" width={width} height={H} role="img" aria-label="在庫金額の推移">
           {/* 縦軸：目盛りと細い横線 */}
           {yTicks.map((v) => (
