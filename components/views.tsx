@@ -106,11 +106,92 @@ function dateTickLabel(t: number, monthly: boolean, withYear: boolean): string {
   return `${m}/${d.getUTCDate()}`;
 }
 
+/** 前の点（記録）との比較：増減（金額）と、その間の入庫・出荷 */
+type SnapshotChange = {
+  diff: number; // 在庫金額の増減
+  inValue: number; // 入庫（入庫一括＋在庫増の調整）
+  received: number;
+  adjusted: number;
+  opening: number; // 導入前在庫の登録
+  outValue: number; // 出荷（先入先出の原価）
+  other: number; // 増減のうち、入庫・出荷・導入前在庫で説明できない分（原価の置き換えなど）
+  complete: boolean; // 金額を記録する前のログが混じっていない
+};
+
+/** 月別：各月の最後の記録（月末時点。今月はいちばん新しい記録）。古い順 */
+function monthEndSeries(snapshots: SnapshotRow[]): SnapshotRow[] {
+  const byMonth = new Map<string, SnapshotRow>();
+  for (const row of [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate))) {
+    byMonth.set(row.snapshotDate.slice(0, 7), row);
+  }
+  return [...byMonth.values()];
+}
+
+/**
+ * series の各点について、1つ前の点との比較を出す（キーは snapshotDate）。
+ * 入庫・出荷は、2つの点の間にあるすべての記録の出入りを合計する（月別でも日ごとの出入りを足し上げる）。
+ */
+function snapshotChanges(snapshots: SnapshotRow[], series: SnapshotRow[]): Map<string, SnapshotChange> {
+  const allAsc = [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+  const seriesAsc = [...series].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+  const map = new Map<string, SnapshotChange>();
+  seriesAsc.forEach((row, i) => {
+    const prev = seriesAsc[i - 1];
+    if (!prev) return;
+    let received = 0;
+    let adjusted = 0;
+    let opening = 0;
+    let outValue = 0;
+    let complete = true;
+    for (const s of allAsc) {
+      if (s.snapshotDate <= prev.snapshotDate || s.snapshotDate > row.snapshotDate) continue;
+      if (!s.movement) {
+        complete = false;
+        continue;
+      }
+      received += s.movement.receivedValue;
+      adjusted += s.movement.adjustedValue;
+      opening += s.movement.openingValue;
+      outValue += s.movement.shippedValue;
+      if (!s.movement.complete) complete = false;
+    }
+    const diff = row.totalValueJpy - prev.totalValueJpy;
+    const inValue = received + adjusted;
+    map.set(row.snapshotDate, {
+      diff,
+      inValue,
+      received,
+      adjusted,
+      opening,
+      outValue,
+      other: diff - (inValue - outValue + opening),
+      complete,
+    });
+  });
+  return map;
+}
+
+function signedYen(value: number): string {
+  const r = Math.round(value);
+  return `${r > 0 ? "+" : r < 0 ? "−" : "±"}${yen(Math.abs(value))}`;
+}
+
+type TrendMode = "daily" | "monthly";
+type MonthRange = "12" | "24" | "all";
+const MONTH_RANGES: Array<[MonthRange, string]> = [
+  ["12", "12か月"],
+  ["24", "24か月"],
+  ["all", "すべて"],
+];
+
 export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow[]; tall?: boolean }) {
+  const [mode, setMode] = useState<TrendMode>("daily");
   const [range, setRange] = useState<TrendRange>("90");
+  const [monthRange, setMonthRange] = useState<MonthRange>("12");
   const [hover, setHover] = useState<number | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(800);
+  const monthly = mode === "monthly";
 
   // 実際の幅で描く（引き伸ばすと文字や線がゆがむため）
   useEffect(() => {
@@ -123,74 +204,154 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
     return () => observer.disconnect();
   }, []);
 
-  const all = useMemo(
-    () => [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate)),
-    [snapshots],
+  // 日別はすべての記録、月別は各月の最後の記録（古い順）
+  const series = useMemo(
+    () => (monthly ? monthEndSeries(snapshots) : [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate))),
+    [snapshots, monthly],
   );
+  // 前の点からの増減と内訳（期間で切っても、いちばん左の点は1つ前の点と比べる）
+  const changes = useMemo(() => snapshotChanges(snapshots, series), [snapshots, series]);
   const points = useMemo(() => {
-    if (range === "all" || all.length === 0) return all;
-    const last = dayMs(all[all.length - 1].snapshotDate);
+    if (series.length === 0) return series;
+    if (monthly) return monthRange === "all" ? series : series.slice(-Number(monthRange));
+    if (range === "all") return series;
+    const last = dayMs(series[series.length - 1].snapshotDate);
     const from = last - (Number(range) - 1) * DAY_MS;
-    return all.filter((p) => dayMs(p.snapshotDate) >= from);
-  }, [all, range]);
+    return series.filter((p) => dayMs(p.snapshotDate) >= from);
+  }, [series, monthly, range, monthRange]);
 
   // 吹き出しの店舗の色（商品一覧のバッジと同じ並び）
   const storeOrder = useMemo(() => {
     const value = new Map<string, number>();
-    for (const row of all) for (const [store, t] of Object.entries(row.byStore)) value.set(store, (value.get(store) ?? 0) + t.v);
+    for (const row of snapshots) for (const [store, t] of Object.entries(row.byStore)) value.set(store, (value.get(store) ?? 0) + t.v);
     return sortStores(value.keys(), (store) => value.get(store) ?? 0);
-  }, [all]);
+  }, [snapshots]);
 
-  const H = tall ? 340 : 220;
-  const pad = { top: 16, right: 24, bottom: 30, left: 64 };
-  const innerW = width - pad.left - pad.right;
-  const innerH = H - pad.top - pad.bottom;
+  function switchMode(next: TrendMode) {
+    setMode(next);
+    setHover(null);
+  }
 
   const header = (
     <div className="panel-head trend-head">
       <h2>📈 在庫金額の推移</h2>
-      <div className="seg" role="group" aria-label="期間">
-        {TREND_RANGES.map(([key, label]) => (
-          <button key={key} type="button" className={range === key ? "active" : ""} onClick={() => setRange(key)}>
-            {label}
+      <div className="trend-controls">
+        <div className="seg" role="group" aria-label="日別・月別">
+          <button type="button" className={!monthly ? "active" : ""} onClick={() => switchMode("daily")}>
+            日別
           </button>
-        ))}
+          <button type="button" className={monthly ? "active" : ""} onClick={() => switchMode("monthly")}>
+            月別(月末時)
+          </button>
+        </div>
+        <div className="seg" role="group" aria-label="期間">
+          {monthly
+            ? MONTH_RANGES.map(([key, label]) => (
+                <button key={key} type="button" className={monthRange === key ? "active" : ""} onClick={() => { setMonthRange(key); setHover(null); }}>
+                  {label}
+                </button>
+              ))
+            : TREND_RANGES.map(([key, label]) => (
+                <button key={key} type="button" className={range === key ? "active" : ""} onClick={() => { setRange(key); setHover(null); }}>
+                  {label}
+                </button>
+              ))}
+        </div>
       </div>
     </div>
   );
 
+  // 点の呼び名：日別は日付、月別は「2026/10（10/07時点）」
+  const pointLabel = (p: SnapshotRow) =>
+    monthly ? `${p.snapshotDate.slice(0, 4)}/${p.snapshotDate.slice(5, 7)}（${p.snapshotDate.slice(5, 7)}/${p.snapshotDate.slice(8, 10)}時点）` : dateOnly(p.snapshotDate);
+
   if (points.length < 2) {
+    const only = points[0] ?? series[series.length - 1];
     return (
       <div className={`panel trend ${tall ? "trend--tall" : ""}`}>
         {header}
         <p className="panel-empty">
-          {all.length < 2
-            ? "照合が2日分以上たまると表示されます（毎日 21:05 に自動で照合します）。"
-            : "この期間の記録が2日分未満です。期間を広げてください。"}
+          {monthly
+            ? series.length < 2
+              ? `月別は2か月分以上の記録がたまると表示されます。${only ? `今は ${pointLabel(only)} の ${yen(only.totalValueJpy)} の1か月分です。` : ""}`
+              : "この期間の記録が2か月分未満です。期間を広げてください。"
+            : series.length < 2
+              ? "照合が2日分以上たまると表示されます（毎日 21:05 に自動で照合します）。"
+              : "この期間の記録が2日分未満です。期間を広げてください。"}
         </p>
       </div>
     );
   }
 
+  /* ---------- 寸法：上が在庫金額の線、下が前の点からの増減の棒（横軸は共通） ---------- */
+  const lineH = tall ? 280 : 180;
+  const barH = tall ? 130 : 90;
+  const gapH = 34; // 線と棒のあいだ（棒の見出しを置く）
+  const pad = { top: 16, right: 24, bottom: 30, left: 72 };
+  const innerW = width - pad.left - pad.right;
+  const H = pad.top + lineH + gapH + barH + pad.bottom;
+  const barTop = pad.top + lineH + gapH;
+  const axisY = barTop + barH; // 日付の目盛りは棒の下
+
+  // 横位置：日別は日付の間隔どおり、月別は1か月ずつ等間隔。両端の棒がはみ出さないよう、棒の半分だけ内側から描く
   const t0 = dayMs(points[0].snapshotDate);
   const t1 = dayMs(points[points.length - 1].snapshotDate);
+  const slots = monthly ? points.length - 1 : Math.max(Math.round((t1 - t0) / DAY_MS), 1);
+  const bw = Math.max(2, Math.min(22, (innerW / slots) * 0.6)); // 棒の太さ：点の間隔の6割（2〜22px）
+  const inset = bw / 2 + 4;
+  const plotL = pad.left + inset;
+  const plotW = innerW - inset * 2;
+  const xAt = (t: number) => plotL + ((t - t0) / Math.max(t1 - t0, 1)) * plotW;
+  const xOf = (i: number) => (monthly ? plotL + (i / (points.length - 1)) * plotW : xAt(dayMs(points[i].snapshotDate)));
+
+  // 線の縦軸
   const values = points.map((p) => p.totalValueJpy);
   const yTicks = niceTicks(Math.min(...values), Math.max(...values));
   const yMin = yTicks[0];
   const yMax = yTicks[yTicks.length - 1];
   const yStep = yTicks.length > 1 ? yTicks[1] - yTicks[0] : 1;
-  const x = (t: number) => pad.left + ((t - t0) / Math.max(t1 - t0, 1)) * innerW;
-  const y = (v: number) => pad.top + (1 - (v - yMin) / Math.max(yMax - yMin, 1)) * innerH;
+  const y = (v: number) => pad.top + (1 - (v - yMin) / Math.max(yMax - yMin, 1)) * lineH;
 
-  const xTicks = dateTicks(t0, t1);
-  const monthly = (t1 - t0) / DAY_MS > 100;
+  // 棒の縦軸（0をはさんで上が入庫、下が出荷）
+  const pointChanges = points.map((p) => changes.get(p.snapshotDate) ?? null);
+  let bMin = 0;
+  let bMax = 0;
+  for (const c of pointChanges) {
+    if (!c) continue;
+    bMin = Math.min(bMin, c.diff, c.complete ? -c.outValue : 0);
+    bMax = Math.max(bMax, c.diff, c.complete ? c.inValue + Math.max(c.opening, 0) : 0);
+  }
+  const bTicks = niceTicks(bMin, bMax, 3);
+  const bLo = bTicks[0];
+  const bHi = bTicks[bTicks.length - 1];
+  const bStep = bTicks.length > 1 ? bTicks[1] - bTicks[0] : 1;
+  const by = (v: number) => barTop + (1 - (v - bLo) / Math.max(bHi - bLo, 1)) * barH;
+  const zeroY = by(0);
+
+  // 棒が細いときは差し引きの横棒を省く（重なって読めないため。吹き出しには出る）
+  const showNet = bw >= 6;
+
+  // 横軸の目盛り
   const withYear = new Date(t0).getUTCFullYear() !== new Date(t1).getUTCFullYear();
+  const xTicks: Array<{ x: number; label: string }> = monthly
+    ? (() => {
+        const every = Math.ceil(points.length / Math.max(2, Math.floor(innerW / 64)));
+        return points
+          .map((p, i) => ({ i, p }))
+          .filter(({ i }) => (points.length - 1 - i) % every === 0) // 最新の月を必ず入れる
+          .map(({ i, p }) => ({ x: xOf(i), label: dateTickLabel(dayMs(p.snapshotDate), true, withYear || points.length > 12) }));
+      })()
+    : dateTicks(t0, t1).map((t) => ({
+        x: xAt(t),
+        label: dateTickLabel(t, (t1 - t0) / DAY_MS > 100, withYear),
+      }));
 
-  const coords = points.map((p) => ({ p, cx: x(dayMs(p.snapshotDate)), cy: y(p.totalValueJpy) }));
+  const coords = points.map((p, i) => ({ p, cx: xOf(i), cy: y(p.totalValueJpy), c: pointChanges[i] }));
   const line = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.cx.toFixed(1)},${c.cy.toFixed(1)}`).join(" ");
-  const area = `${line} L${coords[coords.length - 1].cx.toFixed(1)},${pad.top + innerH} L${coords[0].cx.toFixed(1)},${pad.top + innerH} Z`;
+  const area = `${line} L${coords[coords.length - 1].cx.toFixed(1)},${pad.top + lineH} L${coords[0].cx.toFixed(1)},${pad.top + lineH} Z`;
   const last = coords[coords.length - 1];
-  const active = hover !== null ? coords[hover] : null;
+  const active = hover !== null ? coords[hover] ?? null : null;
+  const showMarkers = points.length <= 40;
 
   function onMove(event: React.MouseEvent<SVGRectElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -202,70 +363,127 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
     setHover(best);
   }
 
+  // 吹き出しの中身
+  const tipChange = active?.c ?? null;
+  const tipBreakdown: Array<{ label: string; value: string; cls?: string }> = [];
+  if (tipChange?.complete) {
+    tipBreakdown.push({ label: "入庫", value: `+${yen(tipChange.inValue)}`, cls: "in" });
+    if (Math.round(tipChange.adjusted) !== 0) {
+      tipBreakdown.push({ label: "　うち返品・棚卸", value: yen(tipChange.adjusted) });
+    }
+    tipBreakdown.push({ label: "出荷", value: `−${yen(tipChange.outValue)}`, cls: "out" });
+    if (Math.round(tipChange.opening) !== 0) tipBreakdown.push({ label: "導入前在庫の登録", value: signedYen(tipChange.opening) });
+    if (Math.abs(tipChange.other) >= 1) tipBreakdown.push({ label: "その他（原価の置き換えなど）", value: signedYen(tipChange.other) });
+  }
   // 吹き出しは点の左右どちらか、はみ出さない側に出す
   const tipLeft = active ? (active.cx > width * 0.6 ? active.cx - 14 : active.cx + 14) : 0;
   const tipAlign = active && active.cx > width * 0.6 ? "translateX(-100%)" : "none";
-  // 下で切れないよう、吹き出しの高さ（店舗数で変わる）を見込んで上にずらす
-  const tipHeight = 92 + storeOrder.length * 19;
+  const tipHeight = 120 + storeOrder.length * 19 + (tipChange ? 26 + Math.max(tipBreakdown.length, 1) * 19 : 0);
   const tipTop = active ? Math.min(Math.max(8, active.cy - 20), H - tipHeight) : 0;
 
   return (
     <div className={`panel trend ${tall ? "trend--tall" : ""}`}>
       {header}
       <div className="trend-body" ref={boxRef}>
-        <svg className="trend-svg" width={width} height={H} role="img" aria-label="在庫金額の推移">
-          {/* 縦軸：目盛りと細い横線 */}
+        <svg className="trend-svg" width={width} height={H} role="img" aria-label="在庫金額の推移と、前の点からの増減">
+          {/* ---- 上：在庫金額 ---- */}
           {yTicks.map((v) => (
-            <g key={v}>
+            <g key={`y${v}`}>
               <line className="trend-grid" x1={pad.left} x2={pad.left + innerW} y1={y(v)} y2={y(v)} />
               <text className="trend-tick" x={pad.left - 10} y={y(v)} textAnchor="end" dominantBaseline="middle">
                 {axisYen(v, yStep)}
               </text>
             </g>
           ))}
-          {/* 横軸：日付の目盛り */}
-          <line className="trend-axis-line" x1={pad.left} x2={pad.left + innerW} y1={pad.top + innerH} y2={pad.top + innerH} />
-          {xTicks.map((t) => (
-            <g key={t}>
-              <line className="trend-axis-line" x1={x(t)} x2={x(t)} y1={pad.top + innerH} y2={pad.top + innerH + 4} />
-              <text
-                className="trend-tick"
-                x={x(t)}
-                y={pad.top + innerH + 18}
-                textAnchor={x(t) > pad.left + innerW - 24 ? "end" : "middle"}
-              >
-                {dateTickLabel(t, monthly, withYear)}
+          <path className="trend-area" d={area} />
+          <path className="trend-line" d={line} />
+          {showMarkers &&
+            coords.map((c) => <circle key={c.p.snapshotDate} className="trend-marker" cx={c.cx} cy={c.cy} r={3} />)}
+          {!active && <circle className="trend-dot" cx={last.cx} cy={last.cy} r={4.5} />}
+
+          {/* ---- 下：前の点からの増減（上に入庫・下に出荷、横棒が差し引きの増減） ---- */}
+          <text className="trend-sub-title" x={pad.left} y={barTop - 12}>
+            前の{monthly ? "月末" : "記録"}からの増減
+          </text>
+          {bTicks.map((v) => (
+            <g key={`b${v}`}>
+              <line className={v === 0 ? "trend-zero" : "trend-grid"} x1={pad.left} x2={pad.left + innerW} y1={by(v)} y2={by(v)} />
+              <text className="trend-tick" x={pad.left - 10} y={by(v)} textAnchor="end" dominantBaseline="middle">
+                {v === 0 ? "0" : `${v > 0 ? "+" : "−"}${axisYen(Math.abs(v), bStep)}`}
               </text>
             </g>
           ))}
-          {/* データ */}
-          <path className="trend-area" d={area} />
-          <path className="trend-line" d={line} />
-          {/* 最新の値（線の端に1つだけ） */}
-          {!active && (
-            <circle className="trend-dot" cx={last.cx} cy={last.cy} r={4.5} />
-          )}
-          {/* マウスを乗せた日 */}
+          {coords.map(({ p, cx, c }, i) => {
+            if (!c) return null;
+            const left = cx - bw / 2;
+            const isActive = hover === i;
+            if (!c.complete) {
+              // 入庫・出荷の金額がない期間は、増減だけを灰色の棒で
+              const top = Math.min(by(c.diff), zeroY);
+              return (
+                <rect
+                  key={p.snapshotDate}
+                  className={`trend-bar trend-bar--net ${isActive ? "is-active" : ""}`}
+                  x={left}
+                  y={top}
+                  width={bw}
+                  height={Math.max(1, Math.abs(by(c.diff) - zeroY))}
+                  rx={Math.min(3, bw / 2)}
+                />
+              );
+            }
+            const inTop = by(c.inValue + Math.max(c.opening, 0));
+            const outBottom = by(-c.outValue);
+            return (
+              <g key={p.snapshotDate} className={isActive ? "is-active" : ""}>
+                {c.inValue + Math.max(c.opening, 0) > 0 && (
+                  <rect className="trend-bar trend-bar--in" x={left} y={inTop} width={bw} height={Math.max(1, zeroY - 1 - inTop)} rx={Math.min(3, bw / 2)} />
+                )}
+                {c.outValue > 0 && (
+                  <rect className="trend-bar trend-bar--out" x={left} y={zeroY + 1} width={bw} height={Math.max(1, outBottom - zeroY - 1)} rx={Math.min(3, bw / 2)} />
+                )}
+                {/* 差し引きの増減 */}
+                {showNet && (
+                  <>
+                    <line className="trend-net-halo" x1={left - 2} x2={left + bw + 2} y1={by(c.diff)} y2={by(c.diff)} />
+                    <line className="trend-net" x1={left - 2} x2={left + bw + 2} y1={by(c.diff)} y2={by(c.diff)} />
+                  </>
+                )}
+              </g>
+            );
+          })}
+
+          {/* ---- 横軸：日付（線と棒で共通） ---- */}
+          <line className="trend-axis-line" x1={pad.left} x2={pad.left + innerW} y1={axisY} y2={axisY} />
+          {xTicks.map((t) => (
+            <g key={`x${t.x}`}>
+              <line className="trend-axis-line" x1={t.x} x2={t.x} y1={axisY} y2={axisY + 4} />
+              <text className="trend-tick" x={t.x} y={axisY + 18} textAnchor={t.x > pad.left + innerW - 24 ? "end" : t.x < pad.left + 24 ? "start" : "middle"}>
+                {t.label}
+              </text>
+            </g>
+          ))}
+
+          {/* マウスを乗せた点（線と棒をまたいで縦線） */}
           {active && (
             <g>
-              <line className="trend-cursor" x1={active.cx} x2={active.cx} y1={pad.top} y2={pad.top + innerH} />
+              <line className="trend-cursor" x1={active.cx} x2={active.cx} y1={pad.top} y2={axisY} />
               <circle className="trend-dot" cx={active.cx} cy={active.cy} r={5} />
             </g>
           )}
-          {/* マウスの当たり判定（グラフ全体） */}
           <rect
             className="trend-hit"
-            x={pad.left}
+            x={pad.left - bw}
             y={pad.top}
-            width={innerW}
-            height={innerH}
+            width={innerW + bw * 2}
+            height={axisY - pad.top}
             onMouseMove={onMove}
             onMouseLeave={() => setHover(null)}
           />
         </svg>
         {active && (
           <div className="trend-tip" style={{ left: tipLeft, top: Math.max(0, tipTop), transform: tipAlign }}>
-            <div className="trend-tip-date">{dateOnly(active.p.snapshotDate)}</div>
+            <div className="trend-tip-date">{pointLabel(active.p)}</div>
             <div className="trend-tip-total">{yen(active.p.totalValueJpy)}</div>
             {storeOrder
               .filter((store) => active.p.byStore[store])
@@ -276,22 +494,44 @@ export function TrendChart({ snapshots, tall = false }: { snapshots: SnapshotRow
                   <b>{yen(active.p.byStore[store].v)}</b>
                 </div>
               ))}
+            {tipChange && (
+              <div className="trend-tip-change">
+                <div className="trend-tip-diff">
+                  <span>前の{monthly ? "月末" : "記録"}から</span>
+                  <b className={tipChange.diff > 0 ? "chg-up" : tipChange.diff < 0 ? "chg-down" : ""}>{signedYen(tipChange.diff)}</b>
+                </div>
+                {tipChange.complete ? (
+                  tipBreakdown.map((row) => (
+                    <div key={row.label} className="trend-tip-row">
+                      <span className={row.cls ? `trend-key trend-key--${row.cls}` : ""} aria-hidden="true" />
+                      <span>{row.label}</span>
+                      <b>{row.value}</b>
+                    </div>
+                  ))
+                ) : (
+                  <div className="trend-tip-note">入庫・出荷：金額を記録する前の期間を含むため不明</div>
+                )}
+              </div>
+            )}
             <div className="trend-tip-meta">
               {count(active.p.totalQty)}個・{count(active.p.productCount)}商品
             </div>
           </div>
         )}
       </div>
+      <div className="trend-legend">
+        <span><i className="trend-key trend-key--in" />入庫</span>
+        <span><i className="trend-key trend-key--out" />出荷</span>
+        {showNet && <span><i className="trend-key trend-key--net" />差し引きの増減</span>}
+        <span><i className="trend-key trend-key--unknown" />増減のみ（入庫・出荷の金額を記録する前）</span>
+      </div>
       <div className="trend-foot">
         <span>
-          {dateOnly(points[0].snapshotDate)} 〜 {dateOnly(points[points.length - 1].snapshotDate)}（{count(points.length)}日分）
+          {pointLabel(points[0])} 〜 {pointLabel(points[points.length - 1])}（{count(points.length)}{monthly ? "か月" : "日"}分）
         </span>
         <span>
           最新 <b>{yen(last.p.totalValueJpy)}</b>
-          {points.length > 1 && (() => {
-            const diff = last.p.totalValueJpy - points[0].totalValueJpy;
-            return <span className="trend-diff">（期間の初めから {diff >= 0 ? "+" : "−"}{yen(Math.abs(diff))}）</span>;
-          })()}
+          <span className="trend-diff">（期間の初めから {signedYen(last.p.totalValueJpy - points[0].totalValueJpy)}）</span>
         </span>
       </div>
     </div>
@@ -1069,18 +1309,6 @@ export function ShipmentsView({ shipments, top }: { shipments: ShipmentRow[]; to
 /* スナップショット                                                     */
 /* ------------------------------------------------------------------ */
 
-/** 前回の記録との比較：増減（金額）と、その間の入庫・出荷 */
-type SnapshotChange = {
-  diff: number; // 在庫金額の増減
-  inValue: number; // 入庫（入庫一括＋在庫増の調整）
-  received: number;
-  adjusted: number;
-  opening: number; // 導入前在庫の登録
-  outValue: number; // 出荷（先入先出の原価）
-  other: number; // 増減のうち、入庫・出荷・導入前在庫で説明できない分（原価の置き換えなど）
-  complete: boolean; // 金額を記録する前のログが混じっていない
-};
-
 export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; top: ReactNode }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1102,57 +1330,13 @@ export function SnapshotsView({ snapshots, top }: { snapshots: SnapshotRow[]; to
   }
 
   // 日別ならすべての記録、月別なら各月の最後の記録（月末時点）。新しい順
-  const series = useMemo(() => {
-    const sorted = [...snapshots].sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate));
-    if (!monthEndOnly) return sorted;
-    const seen = new Set<string>();
-    return sorted.filter((row) => {
-      const month = row.snapshotDate.slice(0, 7);
-      if (seen.has(month)) return false;
-      seen.add(month);
-      return true;
-    });
-  }, [snapshots, monthEndOnly]);
+  const series = useMemo(
+    () => (monthEndOnly ? monthEndSeries(snapshots) : [...snapshots]).sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate)),
+    [snapshots, monthEndOnly],
+  );
 
-  // 1つ前（日別は前日、月別は前月末）との比較。入庫・出荷はその間の記録ごとの出入りを合計する
-  const changes = useMemo(() => {
-    const byDateAsc = [...snapshots].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
-    const map = new Map<string, SnapshotChange>();
-    series.forEach((row, i) => {
-      const prev = series[i + 1];
-      if (!prev) return;
-      const between = byDateAsc.filter((s) => s.snapshotDate > prev.snapshotDate && s.snapshotDate <= row.snapshotDate);
-      let received = 0;
-      let adjusted = 0;
-      let opening = 0;
-      let outValue = 0;
-      let complete = true;
-      for (const s of between) {
-        if (!s.movement) {
-          complete = false;
-          continue;
-        }
-        received += s.movement.receivedValue;
-        adjusted += s.movement.adjustedValue;
-        opening += s.movement.openingValue;
-        outValue += s.movement.shippedValue;
-        if (!s.movement.complete) complete = false;
-      }
-      const diff = row.totalValueJpy - prev.totalValueJpy;
-      const inValue = received + adjusted;
-      map.set(row.snapshotDate, {
-        diff,
-        inValue,
-        received,
-        adjusted,
-        opening,
-        outValue,
-        other: diff - (inValue - outValue + opening),
-        complete,
-      });
-    });
-    return map;
-  }, [snapshots, series]);
+  // 1つ前（日別は前日、月別は前月末）との比較。入庫・出荷はその間の記録ごとの出入りを合計する（グラフと同じ計算）
+  const changes = useMemo(() => snapshotChanges(snapshots, series), [snapshots, series]);
 
   const rows = useMemo(
     () => series.filter((row) => pickedMonths === null || pickedMonths.has(row.snapshotDate.slice(0, 7))),
