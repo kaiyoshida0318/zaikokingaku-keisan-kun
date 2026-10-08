@@ -67,10 +67,10 @@ export function cny(value: number | null | undefined): string {
   return `${value.toLocaleString("ja-JP", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}元`;
 }
 
-/** レート（1元＝何円）。小数は必要な分だけ（最大4桁） */
+/** レート（1元＝何円）。小数2桁（それより細かいレートは最大4桁まで） */
 export function rateText(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
-  return value.toLocaleString("ja-JP", { maximumFractionDigits: 4 });
+  return value.toLocaleString("ja-JP", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
 /** CSV向け：丸めた原価（空は空欄） */
