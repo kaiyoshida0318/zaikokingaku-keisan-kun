@@ -160,11 +160,11 @@ a { color: var(--primary-dark); }
 .metric-card--main .main-value { grid-area: value; }
 .metric-card--main .store-stack { grid-area: stack; align-self: start; }
 .metric-card--main .store-rows { grid-area: stores; align-self: center; }
-.main-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
+.main-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
 .main-title small { font-size: 11px; font-weight: 400; color: var(--muted); }
 .main-icon {
-  width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
-  background: var(--primary-light); font-size: 16px;
+  width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--primary-light); font-size: 18px;
 }
 .main-asof { text-align: right; font-size: 12px; color: var(--muted); line-height: 1.5; }
 .main-asof b { color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -526,22 +526,23 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px;
   display: flex; flex-direction: column; gap: 4px; box-shadow: var(--shadow);
 }
-.cmp-card h3 { font-size: 14px; margin: 0 0 8px; display: flex; align-items: baseline; gap: 8px; }
-.cmp-card h3 small { font-size: 11px; font-weight: 500; color: var(--light); }
+.cmp-card h3 { font-size: 18px; margin: 0 0 10px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.cmp-card h3 small { font-size: 12px; font-weight: 500; color: var(--muted); }
 .cmp-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 2px; font-size: 13px; color: var(--muted); }
 .cmp-line b { font-size: 30px; color: var(--text); font-weight: 800; letter-spacing: -.01em; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .cmp-line--main { font-size: 13px; color: var(--text); font-weight: 600; }
 .cmp-line--main b { font-size: 30px; font-weight: 800; color: var(--text); letter-spacing: -.01em; line-height: 1.15; }
 .cmp-diff {
-  display: flex; align-items: baseline; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border-light);
-  font-size: 12px; color: var(--muted);
+  display: flex; align-items: baseline; gap: 8px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--border-light);
+  font-size: 13px; color: var(--muted);
 }
 .cmp-diff b { margin-left: auto; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .cmp-diff small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
 .cmp-split { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
 .cmp-result { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
 .cmp-split b { font-variant-numeric: tabular-nums; }
-.cmp-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.cmp-sentence { margin-top: 2px; font-size: 13px; color: var(--text); }
+.cmp-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .cmp-breakdown span {
   display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; border-radius: var(--radius-sm);
   background: #fafaf9; font-size: 11px; color: var(--muted);
@@ -556,6 +557,9 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
   font-size: 12px; font-weight: 700; letter-spacing: .06em;
 }
 .cmp-scope-text { font-size: 15px; font-weight: 700; color: var(--text); }
+.cmp-scope-count { margin-left: auto; display: inline-flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--muted); }
+.cmp-scope-count b { font-size: 20px; color: var(--text); }
+.cmp-scope-count span { font-size: 14px; color: var(--text); }
 /* 最新原価（藍）・旧原価（琥珀）の色分け。数字は読みやすい黒のまま、目印の色と背景で見分ける */
 :root { --c-new: #4f46e5; --c-new-bg: #f3f4ff; --c-new-head: #e8e9fd; --c-old: #d97706; --c-old-bg: #fffaf0; --c-old-head: #fdf0d9; }
 .cmp-key { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; flex: none; }
