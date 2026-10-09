@@ -69,7 +69,7 @@ export default function InventorySummary({
         <div className="main-head">
           <div className="main-title">
             <span className="main-icon" aria-hidden="true">💴</span>
-            在庫金額
+            NE総在庫金額
           </div>
           <div
             className="main-asof"

@@ -541,7 +541,6 @@ body.is-col-resizing { cursor: col-resize; user-select: none; }
 .cmp-split { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
 .cmp-result { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
 .cmp-split b { font-variant-numeric: tabular-nums; }
-.cmp-sentence { margin-top: 2px; font-size: 13px; color: var(--text); }
 .cmp-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .cmp-breakdown span {
   display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; border-radius: var(--radius-sm);

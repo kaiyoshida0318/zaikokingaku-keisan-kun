@@ -1618,14 +1618,6 @@ function colTone(key: OldCostSortKey): string {
   return key === "latest" ? "cmp-new" : key === "old" ? "cmp-old" : "";
 }
 
-/** カードの説明文：「〜より ¥173,739（4.2%）低い」 */
-function compareSentence(lead: string, diff: number, base: number, unit: (v: number) => string): string {
-  if (diffSign(diff) === 0) return `${lead.replace(/より.*$/, "")}と同じです。`;
-  const pct = base > 0 ? `（${(Math.round(Math.abs(diff / base) * 1000) / 10).toFixed(1)}%）` : "";
-  const shown = costSign(diff) === 0 ? unitYen(Math.abs(diff), { digits: 2, mode: "round" }) : unit(Math.abs(diff));
-  return `${lead} ${shown}${pct}${diff > 0 ? "高い" : "低い"}。`;
-}
-
 /** CSV向け：小数2桁（丸めの設定に関係なく） */
 function csv2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -1822,7 +1814,7 @@ export function OldCostView({
         </div>
         <div className="cmp-cards">
           <section className="cmp-card">
-            <h3>在庫金額<small>今の在庫数 × 原価の合計</small></h3>
+            <h3>総在庫金額の比較</h3>
             <div className="cmp-line cmp-line--main cmp-new"><span><i className="cmp-key" aria-hidden="true" />最新原価で計算</span><b>{yen(summary.latestValue)}</b></div>
             <div className="cmp-line cmp-old"><span><i className="cmp-key" aria-hidden="true" />旧原価で計算</span><b>{yen(summary.oldValue)}</b></div>
             <div className="cmp-diff">
@@ -1830,7 +1822,6 @@ export function OldCostView({
               <b className={diffClass(valueDiff)}>{moneyDiffText(valueDiff)}</b>
               <small>{pctText(summary.oldValue > 0 ? valueDiff / summary.oldValue : null)}</small>
             </div>
-            <p className="cmp-sentence">{compareSentence("最新原価で計算した在庫金額は、旧原価より", valueDiff, summary.oldValue, yen)}</p>
             <div className="cmp-breakdown">
               <span>
                 上昇商品の増加額
@@ -1843,7 +1834,7 @@ export function OldCostView({
             </div>
           </section>
           <section className="cmp-card">
-            <h3>平均原価<small>1商品あたりの原価の平均（在庫数は考えない）</small></h3>
+            <h3>平均原価の比較</h3>
             <div className="cmp-line cmp-line--main cmp-new"><span><i className="cmp-key" aria-hidden="true" />最新原価平均</span><b>{unitYen(summary.latestAvg)}</b></div>
             <div className="cmp-line cmp-old"><span><i className="cmp-key" aria-hidden="true" />旧原価平均</span><b>{unitYen(summary.oldAvg)}</b></div>
             <div className="cmp-diff">
@@ -1851,7 +1842,6 @@ export function OldCostView({
               <b className={diffClass(avgDiff)}>{unitDiffText(avgDiff)}</b>
               <small>{pctText(summary.oldAvg > 0 ? avgDiff / summary.oldAvg : null)}</small>
             </div>
-            <p className="cmp-sentence">{compareSentence("最新原価は、旧原価より1商品あたり平均", avgDiff, summary.oldAvg, (v) => unitYen(v))}</p>
             <div className="cmp-breakdown">
               <span>
                 上昇商品の平均差（{count(summary.up)}商品）
